@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -182,22 +182,49 @@ Espero confirmación. Gracias.`;
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden border border-red-200">
             <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
                 <AlertCircle className="w-6 h-6 text-red-600"/>
-                <h3 className="text-lg font-bold text-red-800">Error de Conexión</h3>
+                <h3 className="text-lg font-bold text-red-800">
+                    {error === 'CONNECTION_ERROR_CORS' || error === 'ACCESS_DENIED_HTML' 
+                      ? 'Error de Acceso (CORS)' 
+                      : error === 'CONFIGURATION_ERROR_LIBRARY_URL' 
+                        ? 'Error de Configuración: URL de Biblioteca'
+                        : 'Error de Conexión'}
+                </h3>
             </div>
             <div className="p-6">
-                <p className="text-red-700 font-medium mb-4">{error}</p>
                 
-                <div className="bg-gray-50 p-4 rounded-md text-sm text-gray-700 space-y-3 mb-6">
-                    <p className="font-semibold flex items-center gap-2"><HelpCircle className="w-4 h-4 text-blue-500"/> ¿Cómo solucionarlo?</p>
-                    <ol className="list-decimal list-inside space-y-1 ml-1">
-                        <li>Ve a tu proyecto de Google Apps Script.</li>
-                        <li>Clic en <strong>Implementar</strong> {'>'} <strong>Gestionar implementaciones</strong>.</li>
-                        <li>Edita la implementación actual (icono de lápiz).</li>
-                        <li>En <strong>Versión</strong>, selecciona <strong>"Nueva versión"</strong>.</li>
-                        <li>En <strong>Quién tiene acceso</strong>, selecciona <strong>"Cualquiera"</strong>.</li>
-                        <li>Clic en <strong>Implementar</strong>.</li>
-                    </ol>
-                </div>
+                {error === 'CONFIGURATION_ERROR_LIBRARY_URL' && (
+                    <div className="bg-orange-50 p-4 rounded-md text-sm text-orange-900 space-y-3 mb-6 border border-orange-100">
+                         <p className="font-bold flex items-center gap-2"><Link2Off className="w-4 h-4 text-orange-600"/> Has proporcionado una URL de Biblioteca</p>
+                         <p>La URL que pegaste contiene <code>/macros/library/</code>. Esta URL es solo para programadores, no sirve para que funcione la App.</p>
+                         <p className="font-semibold mt-2">Cómo obtener la URL Correcta:</p>
+                         <ol className="list-decimal list-inside space-y-2 ml-1">
+                            <li>Ve a tu editor de Google Apps Script.</li>
+                            <li>Clic en <strong>Implementar (Deploy)</strong> &gt; <strong>Gestionar implementaciones</strong>.</li>
+                            <li>Clic en <strong>Editar</strong> (Lápiz).</li>
+                            <li>En <strong>Tipo</strong>, asegúrate de que diga <strong>Aplicación Web</strong>.</li>
+                            <li>Copia la URL que termina en <code>/exec</code>.</li>
+                            <li>Pega esa URL en el archivo <code>constants.ts</code>.</li>
+                        </ol>
+                    </div>
+                )}
+
+                {(error === 'CONNECTION_ERROR_CORS' || error === 'ACCESS_DENIED_HTML') && (
+                    <div className="bg-blue-50 p-4 rounded-md text-sm text-blue-900 space-y-3 mb-6 border border-blue-100">
+                        <p className="font-bold flex items-center gap-2"><HelpCircle className="w-4 h-4 text-blue-600"/> Solución Requerida en Google Apps Script:</p>
+                        <ol className="list-decimal list-inside space-y-2 ml-1">
+                            <li>Ve a tu editor de Google Apps Script.</li>
+                            <li>Clic en <strong>Implementar (Deploy)</strong> → <strong>Gestionar implementaciones</strong>.</li>
+                            <li>Clic en el icono de <strong>Editar</strong> (Lápiz).</li>
+                            <li>En <strong>Versión</strong>, selecciona <strong>"Nueva versión"</strong>.</li>
+                            <li>En <strong>Quién tiene acceso</strong>, selecciona <strong>"Cualquiera" (Anyone)</strong>.</li>
+                            <li>Clic en <strong>Implementar</strong>.</li>
+                        </ol>
+                    </div>
+                )}
+
+                {error !== 'CONFIGURATION_ERROR_LIBRARY_URL' && error !== 'CONNECTION_ERROR_CORS' && error !== 'ACCESS_DENIED_HTML' && (
+                    <p className="text-red-700 font-medium mb-4">{error}</p>
+                )}
 
                 <button onClick={loadLotteries} className="w-full flex justify-center items-center gap-2 bg-blue-600 px-4 py-2 rounded-md shadow-sm text-white font-medium hover:bg-blue-700 transition-colors">
                     <RefreshCw className="w-4 h-4"/> Reintentar Conexión

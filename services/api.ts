@@ -294,19 +294,28 @@ export class PukatuAPI {
   // --- HELPER ---
   private async fetchAPI(params: URLSearchParams, method: 'GET' | 'POST' = 'POST') {
     try {
+        const trimmedUrl = API_BASE_URL.trim();
+        
+        // CRITICAL CHECK: User provided a Library URL instead of a Web App URL
+        if (trimmedUrl.includes('/macros/library/')) {
+            return { success: false, error: 'CONFIGURATION_ERROR_LIBRARY_URL' } as any;
+        }
+
         if (this.user) {
             params.append('userEmail', this.user.email);
             params.append('userRole', this.user.role);
             if (this.token) params.append('token', this.token);
         }
 
-        const trimmedUrl = API_BASE_URL.trim();
+        // Add cache buster to prevent cached CORS failures
+        const cacheBuster = `_cb=${new Date().getTime()}`;
 
         let response;
         if (method === 'GET') {
             // Build query string for GET
             const url = new URL(trimmedUrl);
             params.forEach((value, key) => url.searchParams.append(key, value));
+            url.searchParams.append('_cb', new Date().getTime().toString());
             
             response = await fetch(url.toString(), {
                 method: 'GET',
@@ -315,10 +324,11 @@ export class PukatuAPI {
             });
         } else {
             // POST with URLSearchParams body
-            // IMPORTANT: Do NOT set Content-Type header manually when using URLSearchParams.
-            // The browser sets it to 'application/x-www-form-urlencoded;charset=UTF-8' automatically.
-            // Setting it manually often triggers a preflight OPTIONS request which GAS fails.
-            response = await fetch(trimmedUrl, {
+            // We append cache buster to URL even for POST to ensure the endpoint hit is fresh
+            const separator = trimmedUrl.includes('?') ? '&' : '?';
+            const postUrl = `${trimmedUrl}${separator}${cacheBuster}`;
+
+            response = await fetch(postUrl, {
                 method: 'POST',
                 mode: 'cors', 
                 credentials: 'omit',
@@ -345,9 +355,9 @@ export class PukatuAPI {
                  return { success: false, error: "Error de configuración GAS: Despliegue obsoleto. Crea una 'Nueva versión'." };
             }
             if (text.includes("Google Drive") || text.includes("Google Docs")) {
-                return { success: false, error: "Error de Permisos: Revisa que 'Quién tiene acceso' esté en 'Cualquiera'." };
+                return { success: false, error: "ACCESS_DENIED_HTML" };
             }
-            return { success: false, error: 'Respuesta inválida (HTML recibido).' };
+            return { success: false, error: 'Respuesta inválida (HTML recibido). Posible error de servidor.' };
         }
 
     } catch (error: any) {
@@ -355,7 +365,8 @@ export class PukatuAPI {
         
         let msg = error.message || 'Error de conexión.';
         if (msg.includes('Failed to fetch')) {
-            msg = 'Failed to fetch: Posible bloqueo de CORS o URL incorrecta. Asegúrate de desplegar como "Cualquiera" (Anyone).';
+            // Return specific code that App.tsx recognizes
+            return { success: false, error: 'CONNECTION_ERROR_CORS' } as any;
         }
         return { success: false, error: msg };
     }
