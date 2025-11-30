@@ -59,15 +59,18 @@ export class PukatuAPI {
 
   // 🔐 AUTH REGISTER (Self-Registration)
   async register(request: RegisterRequest): Promise<ApiResponse<User>> {
+    // Sanitize input
+    const safeEmail = request.email ? String(request.email).trim() : '';
+
     if (USE_MOCK_DATA) {
         await new Promise(r => setTimeout(r, 800));
         const newUser: User = {
             id: Math.random().toString(36).substr(2, 9),
-            email: request.email,
+            email: safeEmail,
             name: request.name,
             role: request.role,
             password: request.password,
-            status: 'active'
+            status: request.status || 'active'
         };
         MOCK_USERS.push(newUser);
         this.user = newUser;
@@ -79,11 +82,15 @@ export class PukatuAPI {
 
     const params = new URLSearchParams({
         action: 'register',
-        email: request.email,
+        email: safeEmail,
         name: request.name,
         password: request.password, 
         role: request.role
     });
+    if (request.status) {
+        params.append('status', request.status);
+    }
+
     // POST for sensitive data
     const response = await this.fetchAPI(params, 'POST');
     if (response.success && response.data) {
@@ -97,14 +104,16 @@ export class PukatuAPI {
 
   // 🔐 AUTH LOGIN
   async login(email: string, password?: string): Promise<ApiResponse<User>> {
+    const safeEmail = email ? String(email).trim() : '';
+
     if (USE_MOCK_DATA) {
       await new Promise(r => setTimeout(r, 600));
-      if (email === 'super@pukatu.com' && password !== 'Apamate.25') {
+      if (safeEmail === 'super@pukatu.com' && password !== 'Apamate.25') {
             return { success: false, error: 'Contraseña incorrecta para Super Admin' };
       }
-      const user = MOCK_USERS.find(u => u.email === email);
+      const user = MOCK_USERS.find(u => u.email === safeEmail);
       if (user) {
-        if (email !== 'super@pukatu.com' && user.password && user.password !== password) {
+        if (safeEmail !== 'super@pukatu.com' && user.password && user.password !== password) {
              return { success: false, error: 'Contraseña incorrecta' };
         }
         this.user = user;
@@ -118,7 +127,7 @@ export class PukatuAPI {
     
     const params = new URLSearchParams({
         action: 'login',
-        email: email,
+        email: safeEmail,
         password: password || ''
     });
     
@@ -220,7 +229,7 @@ export class PukatuAPI {
     if (USE_MOCK_DATA) return { success: true, data: true };
     const params = new URLSearchParams({
         action: 'updateMillionaireBag',
-        data: JSON.stringify(data)
+        updates: JSON.stringify(data) // Changed from 'data' to 'updates' to match backend
     });
     return this.fetchAPI(params, 'POST');
   }
@@ -285,7 +294,7 @@ export class PukatuAPI {
             name: request.name,
             role: request.role,
             password: request.password,
-            status: 'active'
+            status: request.status || 'active'
         };
         MOCK_USERS.push(newUser);
         return { success: true, data: newUser };
@@ -298,6 +307,11 @@ export class PukatuAPI {
         password: request.password, 
         role: request.role
     });
+
+    // Explicitly send status if provided (e.g. 'active' from Super Admin)
+    if (request.status) {
+        params.append('status', request.status);
+    }
     
     // Call API but DO NOT update local session state
     return this.fetchAPI(params, 'POST');

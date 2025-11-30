@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, Role } from '../types';
-import { LogIn, Lock, UserPlus } from 'lucide-react';
+import { LogIn, Lock, UserPlus, Phone } from 'lucide-react';
 
 interface LoginProps {
   api: PukatuAPI;
@@ -13,12 +13,12 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   
   // Login State
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(''); // Stores phone number internally
   const [password, setPassword] = useState('');
   
   // Register State
   const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
+  const [regEmail, setRegEmail] = useState(''); // Stores phone number internally
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState<Role>('public');
 
@@ -105,17 +105,18 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         autoComplete="off"
                     />
                 </div>
-                <div>
-                    <label className="sr-only">Correo Electrónico</label>
+                <div className="relative">
+                    <label className="sr-only">Número de Teléfono</label>
                     <input
-                        type="email"
+                        type="text"
                         required
-                        className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="Correo Electrónico"
+                        className="appearance-none rounded relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm pl-10"
+                        placeholder="Número de Teléfono (0412...)"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         autoComplete="off"
                     />
+                    <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                 </div>
                 <div>
                     <label className="sr-only">Contraseña</label>
@@ -130,7 +131,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Cuenta (Para pruebas)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Cuenta</label>
                     <select 
                         value={regRole}
                         onChange={(e) => setRegRole(e.target.value as Role)}
@@ -139,6 +140,9 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         <option value="public">Usuario Público</option>
                         <option value="admin">Administrador de Lotería</option>
                     </select>
+                    {regRole === 'admin' && (
+                         <p className="text-xs text-yellow-600 mt-1">Las cuentas de administrador requieren aprobación del Super Admin.</p>
+                    )}
                 </div>
 
                 {error && (
@@ -160,18 +164,21 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
             <form className="mt-8 space-y-6" onSubmit={handleLogin} autoComplete="off">
             <div className="rounded-md shadow-sm -space-y-px">
                 <div>
-                <label htmlFor="email-address" className="sr-only">Correo Electrónico</label>
-                <input
-                    id="email-address"
-                    name="email"
-                    type="email"
-                    autoComplete="off"
-                    required
-                    className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                    placeholder="Dirección de correo"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                />
+                <label htmlFor="phone-login" className="sr-only">Número de Teléfono</label>
+                <div className="relative">
+                     <input
+                        id="phone-login"
+                        name="email" // Keep name email for browser managers if needed, or change to tel
+                        type="text"
+                        autoComplete="off"
+                        required
+                        className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm pl-10"
+                        placeholder="Número de Teléfono"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                    <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                </div>
                 </div>
                 <div>
                 <label htmlFor="password" className="sr-only">Contraseña</label>

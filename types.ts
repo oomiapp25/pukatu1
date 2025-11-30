@@ -24,7 +24,8 @@ export interface RegisterRequest {
   name: string;
   email: string;
   password: string;
-  role: Role; // Usually 'public' by default, but allows flexibility if admin creates user
+  role: Role; 
+  status?: 'active' | 'pending'; // Added status field
 }
 
 export interface Lottery {

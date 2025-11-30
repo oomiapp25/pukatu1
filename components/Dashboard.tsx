@@ -159,7 +159,8 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
           name: newUserName,
           email: newUserEmail,
           password: newUserPass,
-          role: newUserRole
+          role: newUserRole,
+          status: 'active' // Super admin creates users as immediately active
       });
 
       if (res.success) {
