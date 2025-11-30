@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off, Clock, Phone } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -31,7 +31,8 @@ function App() {
 
   // User Form State (Autofilled if logged in)
   const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  // Changed from userEmail to userPhone for clarity
+  const [userPhone, setUserPhone] = useState('');
   
   // AI State
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -42,7 +43,8 @@ function App() {
     if (currentUser) {
         setUser(currentUser);
         setUserName(currentUser.name);
-        setUserEmail(currentUser.email);
+        // The API returns the phone number in the 'email' field for compatibility
+        setUserPhone(currentUser.email);
     }
     loadLotteries();
   }, [api]);
@@ -62,7 +64,7 @@ function App() {
   const handleLoginSuccess = (loggedInUser: User) => {
       setUser(loggedInUser);
       setUserName(loggedInUser.name);
-      setUserEmail(loggedInUser.email);
+      setUserPhone(loggedInUser.email);
       setCurrentView(ViewState.DASHBOARD);
   };
 
@@ -70,7 +72,7 @@ function App() {
       api.logout();
       setUser(null);
       setUserName('');
-      setUserEmail('');
+      setUserPhone('');
       setCurrentView(ViewState.HOME);
   };
 
@@ -116,7 +118,8 @@ function App() {
     const purchaseRequest: PurchaseRequest = {
       lotteryId: selectedLottery.id,
       buyerName: userName,
-      email: userEmail,
+      // We send the phone number in the 'email' field to the backend
+      email: userPhone,
       selectedNumbers: selectedNumbers,
       totalAmount: selectedNumbers.length * selectedLottery.pricePerNumber
     };
@@ -134,6 +137,7 @@ function App() {
 🎫 *Sorteo:* ${selectedLottery.title}
 🔢 *Números:* ${selectedNumbers.join(', ')}
 💰 *Total:* ${CURRENCY_SYMBOL}${purchaseRequest.totalAmount}
+📱 *Mi Teléfono:* ${userPhone}
 🆔 *ID Compra:* ${purchaseId}
           
 Espero confirmación. Gracias.`;
@@ -345,17 +349,20 @@ Espero confirmación. Gracias.`;
                         />
                     </div>
                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            required
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-                            placeholder="juan@ejemplo.com"
-                            value={userEmail}
-                            onChange={(e) => setUserEmail(e.target.value)}
-                            disabled={!!user}
-                        />
+                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Número de Teléfono</label>
+                         <div className="relative">
+                            <input 
+                                type="tel" 
+                                id="phone" 
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border pl-10"
+                                placeholder="04121234567"
+                                value={userPhone}
+                                onChange={(e) => setUserPhone(e.target.value)}
+                                disabled={!!user}
+                            />
+                            <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
+                        </div>
                     </div>
 
                     {purchaseResult && !purchaseResult.success && (
