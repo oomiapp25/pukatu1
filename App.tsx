@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -179,12 +179,30 @@ Espero confirmación. Gracias.`;
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center h-40 bg-red-50 rounded-lg border border-red-200 p-6">
-            <AlertCircle className="w-10 h-10 text-red-500 mb-2"/>
-            <p className="text-red-700 font-medium mb-4 text-center">{error}</p>
-            <button onClick={loadLotteries} className="flex items-center gap-2 bg-white px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
-                <RefreshCw className="w-4 h-4"/> Reintentar
-            </button>
+        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden border border-red-200">
+            <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-red-600"/>
+                <h3 className="text-lg font-bold text-red-800">Error de Conexión</h3>
+            </div>
+            <div className="p-6">
+                <p className="text-red-700 font-medium mb-4">{error}</p>
+                
+                <div className="bg-gray-50 p-4 rounded-md text-sm text-gray-700 space-y-3 mb-6">
+                    <p className="font-semibold flex items-center gap-2"><HelpCircle className="w-4 h-4 text-blue-500"/> ¿Cómo solucionarlo?</p>
+                    <ol className="list-decimal list-inside space-y-1 ml-1">
+                        <li>Ve a tu proyecto de Google Apps Script.</li>
+                        <li>Clic en <strong>Implementar</strong> {'>'} <strong>Gestionar implementaciones</strong>.</li>
+                        <li>Edita la implementación actual (icono de lápiz).</li>
+                        <li>En <strong>Versión</strong>, selecciona <strong>"Nueva versión"</strong>.</li>
+                        <li>En <strong>Quién tiene acceso</strong>, selecciona <strong>"Cualquiera"</strong>.</li>
+                        <li>Clic en <strong>Implementar</strong>.</li>
+                    </ol>
+                </div>
+
+                <button onClick={loadLotteries} className="w-full flex justify-center items-center gap-2 bg-blue-600 px-4 py-2 rounded-md shadow-sm text-white font-medium hover:bg-blue-700 transition-colors">
+                    <RefreshCw className="w-4 h-4"/> Reintentar Conexión
+                </button>
+            </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -192,8 +210,10 @@ Espero confirmación. Gracias.`;
             <LotteryCard key={lottery.id} lottery={lottery} onClick={handleSelectLottery} />
           ))}
           {lotteries.length === 0 && (
-             <div className="col-span-full text-center py-12 text-gray-500">
-                 No hay sorteos activos en este momento.
+             <div className="col-span-full flex flex-col items-center justify-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+                 <Ticket className="w-12 h-12 text-gray-300 mb-2"/>
+                 <p className="text-lg font-medium">No hay sorteos activos</p>
+                 <p className="text-sm">Vuelve más tarde o accede como Admin para crear uno.</p>
              </div>
           )}
         </div>

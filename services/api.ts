@@ -83,7 +83,8 @@ export class PukatuAPI {
         password: request.password, // In prod send hashed or use HTTPS
         role: request.role
     });
-    const response = await this.fetchAPI(params);
+    // POST for sensitive data
+    const response = await this.fetchAPI(params, 'POST');
     if (response.success && response.data) {
          this.user = response.data;
          this.token = response.token || 'session_token';
@@ -120,7 +121,8 @@ export class PukatuAPI {
         password: password || ''
     });
     
-    const response = await this.fetchAPI(params);
+    // POST for security
+    const response = await this.fetchAPI(params, 'POST');
     
     if (response.success && response.data) {
         this.user = response.data;
@@ -153,7 +155,8 @@ export class PukatuAPI {
         action: 'getLotteriesByUser',
         targetUserEmail: userEmail // We send this specific param for the query
     });
-    return this.fetchAPI(params);
+    // GET for reading data
+    return this.fetchAPI(params, 'GET');
   }
 
   // --- PUBLIC METHODS ---
@@ -163,7 +166,8 @@ export class PukatuAPI {
       await new Promise(r => setTimeout(r, 500));
       return { success: true, data: MOCK_LOTTERIES.filter(l => l.status === 'active') };
     }
-    return this.fetchAPI(new URLSearchParams({ action: 'getActiveLotteries' }));
+    // GET for reading data
+    return this.fetchAPI(new URLSearchParams({ action: 'getActiveLotteries' }), 'GET');
   }
 
   async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
@@ -188,7 +192,8 @@ export class PukatuAPI {
         selectedNumbers: JSON.stringify(request.selectedNumbers),
         totalAmount: request.totalAmount.toString()
     });
-    return this.fetchAPI(params);
+    // POST for writing
+    return this.fetchAPI(params, 'POST');
   }
 
   // --- SUPER ADMIN METHODS ---
@@ -198,17 +203,19 @@ export class PukatuAPI {
       await new Promise(r => setTimeout(r, 600));
       return { success: true, data: { totalUsers: 10, totalAdmins: 2, totalLotteries: 5, activeLotteries: 3, totalRevenue: 1000, pendingPayments: 1 } };
     }
-    return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }));
+    // GET for reading
+    return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }), 'GET');
   }
 
   async getAllUsers(): Promise<ApiResponse<User[]>> {
     if (USE_MOCK_DATA) return { success: true, data: MOCK_USERS };
-    return this.fetchAPI(new URLSearchParams({ action: 'getAllUsers' }));
+    // GET for reading
+    return this.fetchAPI(new URLSearchParams({ action: 'getAllUsers' }), 'GET');
   }
 
   async deleteLottery(id: string): Promise<ApiResponse<boolean>> {
       if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'deleteLottery', lotteryId: id }));
+      return this.fetchAPI(new URLSearchParams({ action: 'deleteLottery', lotteryId: id }), 'POST');
   }
 
   async updateLottery(id: string, updates: Partial<Lottery>): Promise<ApiResponse<boolean>> {
@@ -218,12 +225,12 @@ export class PukatuAPI {
         lotteryId: id,
         updates: JSON.stringify(updates)
     });
-    return this.fetchAPI(params);
+    return this.fetchAPI(params, 'POST');
   }
 
   async toggleLotteryStatus(id: string): Promise<ApiResponse<boolean>> {
       if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'toggleLotteryStatus', lotteryId: id }));
+      return this.fetchAPI(new URLSearchParams({ action: 'toggleLotteryStatus', lotteryId: id }), 'POST');
   }
 
   async updateUser(userId: string, updates: Partial<User>): Promise<ApiResponse<boolean>> {
@@ -233,12 +240,12 @@ export class PukatuAPI {
           targetUserId: userId,
           updates: JSON.stringify(updates)
       });
-      return this.fetchAPI(params);
+      return this.fetchAPI(params, 'POST');
   }
 
   async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
       if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }));
+      return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }), 'POST');
   }
 
   // --- ADMIN METHODS ---
@@ -258,32 +265,34 @@ export class PukatuAPI {
         }
     });
     
-    return this.fetchAPI(params);
+    return this.fetchAPI(params, 'POST');
   }
 
   async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
     if (USE_MOCK_DATA) return { success: true, data: [] };
-    return this.fetchAPI(new URLSearchParams({ action: 'getPendingPayments' }));
+    // GET for reading
+    return this.fetchAPI(new URLSearchParams({ action: 'getPendingPayments' }), 'GET');
   }
 
   async confirmPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
      if (USE_MOCK_DATA) return { success: true, data: true };
-     return this.fetchAPI(new URLSearchParams({ action: 'confirmPayment', purchaseId }));
+     return this.fetchAPI(new URLSearchParams({ action: 'confirmPayment', purchaseId }), 'POST');
   }
 
   async rejectPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
      if (USE_MOCK_DATA) return { success: true, data: true };
-     return this.fetchAPI(new URLSearchParams({ action: 'rejectPayment', purchaseId }));
+     return this.fetchAPI(new URLSearchParams({ action: 'rejectPayment', purchaseId }), 'POST');
   }
 
   // --- USER METHODS ---
   async getMyPurchases(): Promise<ApiResponse<Purchase[]>> {
     if (USE_MOCK_DATA) return { success: true, data: [] };
-    return this.fetchAPI(new URLSearchParams({ action: 'getMyPurchases' }));
+    // GET for reading
+    return this.fetchAPI(new URLSearchParams({ action: 'getMyPurchases' }), 'GET');
   }
 
   // --- HELPER ---
-  private async fetchAPI(params: URLSearchParams) {
+  private async fetchAPI(params: URLSearchParams, method: 'GET' | 'POST' = 'POST') {
     try {
         if (this.user) {
             params.append('userEmail', this.user.email);
@@ -291,11 +300,31 @@ export class PukatuAPI {
             if (this.token) params.append('token', this.token);
         }
 
-        // Send parameters in BODY
-        const response = await fetch(API_BASE_URL, {
-            method: 'POST',
-            body: params
-        });
+        const trimmedUrl = API_BASE_URL.trim();
+
+        let response;
+        if (method === 'GET') {
+            // Build query string for GET
+            const url = new URL(trimmedUrl);
+            params.forEach((value, key) => url.searchParams.append(key, value));
+            
+            response = await fetch(url.toString(), {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            });
+        } else {
+            // POST with URLSearchParams body
+            // IMPORTANT: Do NOT set Content-Type header manually when using URLSearchParams.
+            // The browser sets it to 'application/x-www-form-urlencoded;charset=UTF-8' automatically.
+            // Setting it manually often triggers a preflight OPTIONS request which GAS fails.
+            response = await fetch(trimmedUrl, {
+                method: 'POST',
+                mode: 'cors', 
+                credentials: 'omit',
+                body: params
+            });
+        }
         
         const text = await response.text();
         
@@ -304,24 +333,31 @@ export class PukatuAPI {
              throw new Error('Server error: ' + response.status);
         }
 
-        // Handle HTML errors from Google Script (e.g., "myFunction not found")
         try {
             return JSON.parse(text);
         } catch (e) {
             console.error("JSON Parse Error. Raw response:", text);
             
             if (text.includes("script completed but did not return anything")) {
-                return { success: false, error: "El servidor no devolvió datos (Revisa que tu doPost tenga 'return')." };
+                return { success: false, error: "El script de Google no devolvió datos." };
             }
             if (text.includes("myFunction") || text.includes("function was deleted")) {
-                 return { success: false, error: "Error de configuración GAS: La función no existe. Revisa tu despliegue." };
+                 return { success: false, error: "Error de configuración GAS: Despliegue obsoleto. Crea una 'Nueva versión'." };
             }
-            return { success: false, error: 'Respuesta inválida del servidor (HTML recibido en vez de JSON).' };
+            if (text.includes("Google Drive") || text.includes("Google Docs")) {
+                return { success: false, error: "Error de Permisos: Revisa que 'Quién tiene acceso' esté en 'Cualquiera'." };
+            }
+            return { success: false, error: 'Respuesta inválida (HTML recibido).' };
         }
 
     } catch (error: any) {
-        console.error("API Call Error", error);
-        return { success: false, error: error.message || 'Error de conexión.' };
+        console.error("API Call Error Details:", error);
+        
+        let msg = error.message || 'Error de conexión.';
+        if (msg.includes('Failed to fetch')) {
+            msg = 'Failed to fetch: Posible bloqueo de CORS o URL incorrecta. Asegúrate de desplegar como "Cualquiera" (Anyone).';
+        }
+        return { success: false, error: msg };
     }
   }
 }
