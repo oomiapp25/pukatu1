@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -22,6 +22,7 @@ function App() {
   const [selectedLottery, setSelectedLottery] = useState<Lottery | null>(null);
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [purchaseResult, setPurchaseResult] = useState<{success: boolean, message: string} | null>(null);
   
@@ -45,9 +46,12 @@ function App() {
 
   const loadLotteries = async () => {
     setLoading(true);
+    setError('');
     const result = await api.getActiveLotteries();
     if (result.success && result.data) {
       setLotteries(result.data);
+    } else {
+      setError(result.error || 'No se pudieron cargar las loterías.');
     }
     setLoading(false);
   };
@@ -174,11 +178,24 @@ Espero confirmación. Gracias.`;
         <div className="flex justify-center items-center h-64">
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center h-40 bg-red-50 rounded-lg border border-red-200 p-6">
+            <AlertCircle className="w-10 h-10 text-red-500 mb-2"/>
+            <p className="text-red-700 font-medium mb-4 text-center">{error}</p>
+            <button onClick={loadLotteries} className="flex items-center gap-2 bg-white px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <RefreshCw className="w-4 h-4"/> Reintentar
+            </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {lotteries.map(lottery => (
             <LotteryCard key={lottery.id} lottery={lottery} onClick={handleSelectLottery} />
           ))}
+          {lotteries.length === 0 && (
+             <div className="col-span-full text-center py-12 text-gray-500">
+                 No hay sorteos activos en este momento.
+             </div>
+          )}
         </div>
       )}
     </div>

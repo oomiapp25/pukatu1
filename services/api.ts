@@ -2,9 +2,9 @@
 import { Lottery, PurchaseRequest, ApiResponse, User, Purchase, SystemStats, Role, RegisterRequest } from '../types';
 import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
 
-// --- MOCK DATA ---
+// --- MOCK DATA (Fallback) ---
 let MOCK_USERS: User[] = [
-  { id: '1', email: 'super@pukatu.com', name: 'Super Admin', role: 'superadmin', password: '123' }, // Password is overridden by hardcoded check in Login for Super
+  { id: '1', email: 'super@pukatu.com', name: 'Super Admin', role: 'superadmin', password: '123' },
   { id: '2', email: 'admin@pukatu.com', name: 'Admin Principal', role: 'admin', password: '123' },
   { id: '3', email: 'user@pukatu.com', name: 'Juan Pérez', role: 'public', password: '123' }
 ];
@@ -23,47 +23,10 @@ let MOCK_LOTTERIES: Lottery[] = [
     image: 'https://picsum.photos/400/250?random=1',
     createdBy: 'admin@pukatu.com',
     contactPhone: '584121234567'
-  },
-  {
-    id: '2',
-    title: 'Bonanza Tecnológica',
-    description: 'El último paquete de laptop, smartphone y tablet.',
-    prize: 'Pack Tech',
-    totalNumbers: 50,
-    pricePerNumber: 25,
-    soldNumbers: [2, 3, 4, 10, 20, 30, 40, 49],
-    status: 'active',
-    drawDate: '2023-11-30',
-    image: 'https://picsum.photos/400/250?random=2',
-    createdBy: 'super@pukatu.com',
-    contactPhone: '584149876543'
   }
 ];
 
-const MOCK_PURCHASES: Purchase[] = [
-  {
-    id: 'p1',
-    lotteryId: '1',
-    lotteryTitle: 'Gran Sorteo de Fin de Semana',
-    buyerName: 'Juan Pérez',
-    email: 'user@pukatu.com',
-    selectedNumbers: [5, 12],
-    totalAmount: 20,
-    status: 'confirmed',
-    purchaseDate: '2023-11-20'
-  },
-  {
-    id: 'p2',
-    lotteryId: '2',
-    lotteryTitle: 'Bonanza Tecnológica',
-    buyerName: 'Pedro Pendiente',
-    email: 'pedro@mail.com',
-    selectedNumbers: [10],
-    totalAmount: 25,
-    status: 'pending',
-    purchaseDate: '2023-11-21'
-  }
-];
+let MOCK_PURCHASES: Purchase[] = [];
 
 export class PukatuAPI {
   private user: User | null = null;
@@ -98,11 +61,6 @@ export class PukatuAPI {
   async register(request: RegisterRequest): Promise<ApiResponse<User>> {
     if (USE_MOCK_DATA) {
         await new Promise(r => setTimeout(r, 800));
-
-        if (MOCK_USERS.some(u => u.email === request.email)) {
-            return { success: false, error: 'El correo ya está registrado.' };
-        }
-
         const newUser: User = {
             id: Math.random().toString(36).substr(2, 9),
             email: request.email,
@@ -110,40 +68,43 @@ export class PukatuAPI {
             role: request.role,
             password: request.password
         };
-
         MOCK_USERS.push(newUser);
-        
-        // Auto login after register
         this.user = newUser;
         this.token = 'mock_token_' + Date.now();
         localStorage.setItem('pukatu_user', JSON.stringify(newUser));
         localStorage.setItem('pukatu_token', this.token);
-
         return { success: true, data: newUser };
     }
-    return { success: false, error: 'Backend no conectado' };
+
+    const params = new URLSearchParams({
+        action: 'register',
+        email: request.email,
+        name: request.name,
+        password: request.password, // In prod send hashed or use HTTPS
+        role: request.role
+    });
+    const response = await this.fetchAPI(params);
+    if (response.success && response.data) {
+         this.user = response.data;
+         this.token = response.token || 'session_token';
+         localStorage.setItem('pukatu_user', JSON.stringify(this.user));
+         localStorage.setItem('pukatu_token', this.token);
+    }
+    return response;
   }
 
   // 🔐 AUTH LOGIN
   async login(email: string, password?: string): Promise<ApiResponse<User>> {
     if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 600)); // Simulate latency
-      
-      // SUPER ADMIN SECURITY CHECK (Hardcoded override)
-      if (email === 'super@pukatu.com') {
-        if (password !== 'Apamate.25') {
+      await new Promise(r => setTimeout(r, 600));
+      if (email === 'super@pukatu.com' && password !== 'Apamate.25') {
             return { success: false, error: 'Contraseña incorrecta para Super Admin' };
-        }
       }
-
       const user = MOCK_USERS.find(u => u.email === email);
-      
       if (user) {
-        // Check password for non-super users (or super user if we removed the override above)
         if (email !== 'super@pukatu.com' && user.password && user.password !== password) {
              return { success: false, error: 'Contraseña incorrecta' };
         }
-
         this.user = user;
         this.token = 'mock_token_' + Date.now();
         localStorage.setItem('pukatu_user', JSON.stringify(user));
@@ -153,23 +114,34 @@ export class PukatuAPI {
       return { success: false, error: 'Usuario no encontrado' };
     }
     
-    // Real fetch logic would go here
-    return { success: false, error: 'Backend no conectado' };
+    const params = new URLSearchParams({
+        action: 'login',
+        email: email,
+        password: password || ''
+    });
+    
+    const response = await this.fetchAPI(params);
+    
+    if (response.success && response.data) {
+        this.user = response.data;
+        this.token = response.token;
+        localStorage.setItem('pukatu_user', JSON.stringify(this.user));
+        localStorage.setItem('pukatu_token', this.token || '');
+    }
+    
+    return response;
   }
 
-  // 👤 USER LOTTERIES (Filtered by Role)
+  // 👤 USER LOTTERIES
   async getLotteriesByUser(userEmail: string, userRole: Role): Promise<ApiResponse<Lottery[]>> {
     if (USE_MOCK_DATA) {
         await new Promise(r => setTimeout(r, 400));
         let result: Lottery[] = [];
-
         if (userRole === 'superadmin') {
-            // Super admin sees ALL lotteries
             result = MOCK_LOTTERIES;
         } else if (userRole === 'admin') {
             result = MOCK_LOTTERIES.filter(l => l.createdBy === userEmail);
         } else {
-            // Public user sees lotteries they participated in
             const myPurchases = MOCK_PURCHASES.filter(p => p.email === userEmail);
             const myLotteryIds = myPurchases.map(p => p.lotteryId);
             result = MOCK_LOTTERIES.filter(l => myLotteryIds.includes(l.id));
@@ -179,9 +151,7 @@ export class PukatuAPI {
     
     const params = new URLSearchParams({
         action: 'getLotteriesByUser',
-        userEmail,
-        userRole,
-        targetUserEmail: userEmail
+        targetUserEmail: userEmail // We send this specific param for the query
     });
     return this.fetchAPI(params);
   }
@@ -199,25 +169,26 @@ export class PukatuAPI {
   async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
     if (USE_MOCK_DATA) {
       await new Promise(r => setTimeout(r, 1000));
-      
       const newPurchase: Purchase = {
         ...request,
         id: 'p' + Math.random().toString(36).substr(2, 9),
         status: 'pending',
         purchaseDate: new Date().toISOString().split('T')[0],
-        lotteryTitle: MOCK_LOTTERIES.find(l => l.id === request.lotteryId)?.title || 'Sorteo'
+        lotteryTitle: 'Sorteo Mock'
       };
       MOCK_PURCHASES.push(newPurchase);
-      
-      // Update lottery sold numbers in mock db (Mark as reserved/sold pending confirmation)
-      const lottery = MOCK_LOTTERIES.find(l => l.id === request.lotteryId);
-      if (lottery) {
-          lottery.soldNumbers = [...lottery.soldNumbers, ...request.selectedNumbers];
-      }
-
-      return { success: true, data: { purchaseId: newPurchase.id, contactPhone: lottery?.contactPhone } };
+      return { success: true, data: { purchaseId: newPurchase.id, contactPhone: '584121234567' } };
     }
-    return { success: false, error: 'Backend no conectado' };
+
+    const params = new URLSearchParams({
+        action: 'purchaseNumber',
+        lotteryId: request.lotteryId,
+        buyerName: request.buyerName,
+        email: request.email,
+        selectedNumbers: JSON.stringify(request.selectedNumbers),
+        totalAmount: request.totalAmount.toString()
+    });
+    return this.fetchAPI(params);
   }
 
   // --- SUPER ADMIN METHODS ---
@@ -225,176 +196,132 @@ export class PukatuAPI {
   async getSystemStats(): Promise<ApiResponse<SystemStats>> {
     if (USE_MOCK_DATA) {
       await new Promise(r => setTimeout(r, 600));
-      return {
-        success: true,
-        data: {
-          totalUsers: MOCK_USERS.length,
-          totalAdmins: MOCK_USERS.filter(u => u.role === 'admin' || u.role === 'superadmin').length,
-          totalLotteries: MOCK_LOTTERIES.length,
-          activeLotteries: MOCK_LOTTERIES.filter(l => l.status === 'active').length,
-          totalRevenue: 15420,
-          pendingPayments: MOCK_PURCHASES.filter(p => p.status === 'pending').length
-        }
-      };
+      return { success: true, data: { totalUsers: 10, totalAdmins: 2, totalLotteries: 5, activeLotteries: 3, totalRevenue: 1000, pendingPayments: 1 } };
     }
-    return { success: false, error: 'Error de API' };
+    return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }));
   }
 
   async getAllUsers(): Promise<ApiResponse<User[]>> {
-    if (USE_MOCK_DATA) {
-      return { success: true, data: MOCK_USERS };
-    }
-    return { success: false };
+    if (USE_MOCK_DATA) return { success: true, data: MOCK_USERS };
+    return this.fetchAPI(new URLSearchParams({ action: 'getAllUsers' }));
   }
 
-  // Freedom of Edition methods
   async deleteLottery(id: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) {
-          const index = MOCK_LOTTERIES.findIndex(l => l.id === id);
-          if (index !== -1) {
-              MOCK_LOTTERIES.splice(index, 1);
-              return { success: true, data: true };
-          }
-          return { success: false, error: 'Loteria no encontrada' };
-      }
-      return { success: false };
+      if (USE_MOCK_DATA) return { success: true, data: true };
+      return this.fetchAPI(new URLSearchParams({ action: 'deleteLottery', lotteryId: id }));
   }
 
   async updateLottery(id: string, updates: Partial<Lottery>): Promise<ApiResponse<boolean>> {
-    if (USE_MOCK_DATA) {
-        const lottery = MOCK_LOTTERIES.find(l => l.id === id);
-        if (lottery) {
-            Object.assign(lottery, updates);
-            return { success: true, data: true };
-        }
-        return { success: false, error: 'Loteria no encontrada' };
-    }
-    return { success: false };
+    if (USE_MOCK_DATA) return { success: true, data: true };
+    const params = new URLSearchParams({
+        action: 'updateLottery',
+        lotteryId: id,
+        updates: JSON.stringify(updates)
+    });
+    return this.fetchAPI(params);
   }
 
   async toggleLotteryStatus(id: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) {
-          const lottery = MOCK_LOTTERIES.find(l => l.id === id);
-          if (lottery) {
-              lottery.status = lottery.status === 'active' ? 'completed' : 'active';
-              return { success: true, data: true };
-          }
-      }
-      return { success: false };
+      if (USE_MOCK_DATA) return { success: true, data: true };
+      return this.fetchAPI(new URLSearchParams({ action: 'toggleLotteryStatus', lotteryId: id }));
   }
 
   async updateUser(userId: string, updates: Partial<User>): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) {
-          const user = MOCK_USERS.find(u => u.id === userId);
-          if (user) {
-              Object.assign(user, updates);
-              return { success: true, data: true };
-          }
-          return { success: false, error: 'Usuario no encontrado' };
-      }
-      return { success: false };
+      if (USE_MOCK_DATA) return { success: true, data: true };
+      const params = new URLSearchParams({
+          action: 'updateUser',
+          targetUserId: userId,
+          updates: JSON.stringify(updates)
+      });
+      return this.fetchAPI(params);
   }
 
   async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) {
-          MOCK_USERS = MOCK_USERS.filter(u => u.id !== userId);
-          return { success: true, data: true };
-      }
-      return { success: false };
+      if (USE_MOCK_DATA) return { success: true, data: true };
+      return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }));
   }
 
   // --- ADMIN METHODS ---
 
   async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
     if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 1000));
-      const newLottery: Lottery = {
-        ...lottery as Lottery,
-        id: Math.random().toString(36).substr(2, 9),
-        soldNumbers: [],
-        status: 'active',
-        image: 'https://picsum.photos/400/250?random=' + Math.random(),
-        createdBy: this.user?.email
-      };
-      MOCK_LOTTERIES.push(newLottery);
-      return { success: true, data: newLottery };
+        return { success: true, data: { ...lottery, id: '123', soldNumbers: [], status: 'active', image: '' } as Lottery };
     }
-    return { success: false };
+    
+    // Ensure all required fields are present or stringify complex ones
+    const params = new URLSearchParams();
+    params.append('action', 'createLottery');
+    Object.keys(lottery).forEach(key => {
+        const val = lottery[key as keyof Lottery];
+        if (val !== undefined) {
+             params.append(key, String(val));
+        }
+    });
+    
+    return this.fetchAPI(params);
   }
 
   async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
-    if (USE_MOCK_DATA) {
-        // If admin, show payments for their lotteries. If Super, show all.
-        let filtered = MOCK_PURCHASES.filter(p => p.status === 'pending');
-        if (this.user?.role === 'admin') {
-            const myLotteryIds = MOCK_LOTTERIES.filter(l => l.createdBy === this.user?.email).map(l => l.id);
-            filtered = filtered.filter(p => myLotteryIds.includes(p.lotteryId));
-        }
-        return { success: true, data: filtered };
-    }
-    return { success: false };
+    if (USE_MOCK_DATA) return { success: true, data: [] };
+    return this.fetchAPI(new URLSearchParams({ action: 'getPendingPayments' }));
   }
 
   async confirmPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-     if (USE_MOCK_DATA) {
-         await new Promise(r => setTimeout(r, 500));
-         const purchase = MOCK_PURCHASES.find(p => p.id === purchaseId);
-         if(purchase) purchase.status = 'confirmed';
-         return { success: true, data: true };
-     }
-     return { success: false };
+     if (USE_MOCK_DATA) return { success: true, data: true };
+     return this.fetchAPI(new URLSearchParams({ action: 'confirmPayment', purchaseId }));
   }
 
   async rejectPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-     if (USE_MOCK_DATA) {
-         await new Promise(r => setTimeout(r, 500));
-         const purchaseIndex = MOCK_PURCHASES.findIndex(p => p.id === purchaseId);
-         if (purchaseIndex !== -1) {
-             const purchase = MOCK_PURCHASES[purchaseIndex];
-             // Mark as rejected
-             purchase.status = 'rejected';
-             
-             // Free up the numbers in the lottery
-             const lottery = MOCK_LOTTERIES.find(l => l.id === purchase.lotteryId);
-             if (lottery) {
-                 lottery.soldNumbers = lottery.soldNumbers.filter(n => !purchase.selectedNumbers.includes(n));
-             }
-             
-             return { success: true, data: true };
-         }
-         return { success: false };
-     }
-     return { success: false };
+     if (USE_MOCK_DATA) return { success: true, data: true };
+     return this.fetchAPI(new URLSearchParams({ action: 'rejectPayment', purchaseId }));
   }
 
   // --- USER METHODS ---
   async getMyPurchases(): Promise<ApiResponse<Purchase[]>> {
-    if (USE_MOCK_DATA) {
-        if (!this.user) return { success: false, error: 'No autorizado' };
-        return { success: true, data: MOCK_PURCHASES.filter(p => p.email === this.user?.email) };
-    }
-    return { success: false };
+    if (USE_MOCK_DATA) return { success: true, data: [] };
+    return this.fetchAPI(new URLSearchParams({ action: 'getMyPurchases' }));
   }
 
-  // --- HELPER FOR REAL FETCH ---
+  // --- HELPER ---
   private async fetchAPI(params: URLSearchParams) {
     try {
-        // Append auth info if available
         if (this.user) {
             params.append('userEmail', this.user.email);
             params.append('userRole', this.user.role);
             if (this.token) params.append('token', this.token);
         }
 
-        const response = await fetch(`${API_BASE_URL}?${params}`, {
-            method: 'POST'
+        // Send parameters in BODY
+        const response = await fetch(API_BASE_URL, {
+            method: 'POST',
+            body: params
         });
         
-        if (!response.ok) throw new Error('Network error');
-        return await response.json();
-    } catch (error) {
+        const text = await response.text();
+        
+        if (!response.ok) {
+             console.error("Server Error:", text);
+             throw new Error('Server error: ' + response.status);
+        }
+
+        // Handle HTML errors from Google Script (e.g., "myFunction not found")
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error("JSON Parse Error. Raw response:", text);
+            
+            if (text.includes("script completed but did not return anything")) {
+                return { success: false, error: "El servidor no devolvió datos (Revisa que tu doPost tenga 'return')." };
+            }
+            if (text.includes("myFunction") || text.includes("function was deleted")) {
+                 return { success: false, error: "Error de configuración GAS: La función no existe. Revisa tu despliegue." };
+            }
+            return { success: false, error: 'Respuesta inválida del servidor (HTML recibido en vez de JSON).' };
+        }
+
+    } catch (error: any) {
         console.error("API Call Error", error);
-        return { success: false, error: 'Error de conexión' };
+        return { success: false, error: error.message || 'Error de conexión.' };
     }
   }
 }
