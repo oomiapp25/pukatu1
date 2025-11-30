@@ -1,0 +1,5 @@
+{
+  "name": "PUKATU Lottery",
+  "description": "A modern, secure, and responsive lottery management system connecting to Google Sheets.",
+  "requestFramePermissions": []
+}
