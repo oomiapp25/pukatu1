@@ -57,7 +57,7 @@ export class PukatuAPI {
     localStorage.removeItem('pukatu_token');
   }
 
-  // 🔐 AUTH REGISTER
+  // 🔐 AUTH REGISTER (Self-Registration)
   async register(request: RegisterRequest): Promise<ApiResponse<User>> {
     if (USE_MOCK_DATA) {
         await new Promise(r => setTimeout(r, 800));
@@ -80,7 +80,7 @@ export class PukatuAPI {
         action: 'register',
         email: request.email,
         name: request.name,
-        password: request.password, // In prod send hashed or use HTTPS
+        password: request.password, 
         role: request.role
     });
     // POST for sensitive data
@@ -246,6 +246,33 @@ export class PukatuAPI {
   async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
       if (USE_MOCK_DATA) return { success: true, data: true };
       return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }), 'POST');
+  }
+
+  // New method for Super Admin to create other users without logging in
+  async adminCreateUser(request: RegisterRequest): Promise<ApiResponse<User>> {
+    if (USE_MOCK_DATA) {
+        await new Promise(r => setTimeout(r, 800));
+        const newUser: User = {
+            id: Math.random().toString(36).substr(2, 9),
+            email: request.email,
+            name: request.name,
+            role: request.role,
+            password: request.password
+        };
+        MOCK_USERS.push(newUser);
+        return { success: true, data: newUser };
+    }
+
+    const params = new URLSearchParams({
+        action: 'register',
+        email: request.email,
+        name: request.name,
+        password: request.password, 
+        role: request.role
+    });
+    
+    // Call API but DO NOT update local session state
+    return this.fetchAPI(params, 'POST');
   }
 
   // --- ADMIN METHODS ---

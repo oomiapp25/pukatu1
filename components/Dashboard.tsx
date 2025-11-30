@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, SystemStats, Purchase, Lottery, Role } from '../types';
-import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle } from 'lucide-react';
+import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../constants';
 
 interface DashboardProps {
@@ -52,6 +52,13 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
   const [editingLottery, setEditingLottery] = useState<Lottery | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
+  // Create User State
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPass, setNewUserPass] = useState('');
+  const [newUserRole, setNewUserRole] = useState<Role>('admin');
+
   useEffect(() => {
     loadData();
   }, [tab]);
@@ -100,7 +107,6 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
   const handleSaveUser = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingUser) return;
-      // In a real app we'd need a specific updateUser endpoint. Using updateLottery logic as placeholder for structure
       await api.updateUser(editingUser.id, editingUser);
       setEditingUser(null);
       loadData();
@@ -111,6 +117,29 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
       if (confirm('¿Eliminar este usuario del sistema?')) {
           await api.deleteUser(userId);
           loadData();
+      }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if(!newUserName || !newUserEmail || !newUserPass) return;
+
+      const res = await api.adminCreateUser({
+          name: newUserName,
+          email: newUserEmail,
+          password: newUserPass,
+          role: newUserRole
+      });
+
+      if (res.success) {
+          alert('Usuario creado correctamente');
+          setShowCreateUserModal(false);
+          setNewUserName('');
+          setNewUserEmail('');
+          setNewUserPass('');
+          loadData();
+      } else {
+          alert('Error: ' + res.error);
       }
   };
 
@@ -197,7 +226,16 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
         )}
 
         {tab === 'users' && (
-             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-sm font-bold text-gray-700 uppercase">Lista de Usuarios</h3>
+                    <button 
+                        onClick={() => setShowCreateUserModal(true)}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-700 flex items-center gap-2"
+                    >
+                        <UserPlus className="w-4 h-4" /> Agregar Usuario
+                    </button>
+                </div>
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -236,6 +274,75 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
                     </tbody>
                 </table>
              </div>
+        )}
+
+        {/* CREATE USER MODAL */}
+        {showCreateUserModal && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+                    <div className="flex justify-between items-center p-5 border-b border-gray-200 rounded-t-lg bg-gray-50">
+                        <h3 className="text-xl font-semibold text-gray-900">Agregar Nuevo Usuario</h3>
+                        <button onClick={() => setShowCreateUserModal(false)} className="text-gray-400 hover:text-gray-900">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
+                    <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Nombre Completo</label>
+                            <input 
+                                type="text" 
+                                value={newUserName} 
+                                onChange={(e) => setNewUserName(e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                            <input 
+                                type="email" 
+                                value={newUserEmail} 
+                                onChange={(e) => setNewUserEmail(e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Contraseña Inicial</label>
+                            <input 
+                                type="text" 
+                                value={newUserPass} 
+                                onChange={(e) => setNewUserPass(e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-yellow-50 font-mono"
+                                required
+                                placeholder="Escribe la contraseña"
+                            />
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700">Rol Asignado</label>
+                            <select 
+                                value={newUserRole} 
+                                onChange={(e) => setNewUserRole(e.target.value as Role)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                            >
+                                <option value="public">Usuario Público</option>
+                                <option value="admin">Administrador</option>
+                                <option value="superadmin">Super Admin</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">Los administradores pueden crear y gestionar sorteos.</p>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-4">
+                            <button type="button" onClick={() => setShowCreateUserModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
+                                Cancelar
+                            </button>
+                            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2">
+                                <UserPlus className="w-4 h-4" /> Crear Usuario
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         )}
 
         {/* EDIT LOTTERY MODAL */}
