@@ -1,3 +1,4 @@
+
 export enum ViewState {
   HOME = 'HOME',
   LOTTERY_DETAIL = 'LOTTERY_DETAIL',
@@ -15,6 +16,14 @@ export interface User {
   name: string;
   role: Role;
   token?: string;
+  password?: string; // Added for mock auth logic
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: Role; // Usually 'public' by default, but allows flexibility if admin creates user
 }
 
 export interface Lottery {
@@ -29,6 +38,7 @@ export interface Lottery {
   drawDate: string;
   image: string;
   createdBy?: string; // email of admin
+  contactPhone?: string; // WhatsApp number for purchase confirmation
 }
 
 export interface PurchaseRequest {

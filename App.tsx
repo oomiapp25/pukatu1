@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ViewState, Lottery, PurchaseRequest, User } from './types';
 import { PukatuAPI } from './services/api';
@@ -7,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -115,8 +116,26 @@ function App() {
     const result = await api.submitPurchase(purchaseRequest);
     setPurchasing(false);
     
-    if (result.success) {
-      setPurchaseResult({ success: true, message: result.data || '¡Éxito!' });
+    if (result.success && result.data) {
+      const { purchaseId, contactPhone } = result.data;
+
+      // Prepare WhatsApp Redirect
+      if (contactPhone) {
+          const message = `👋 Hola, deseo confirmar mi compra en PUKATU.
+🎫 *Sorteo:* ${selectedLottery.title}
+🔢 *Números:* ${selectedNumbers.join(', ')}
+💰 *Total:* ${CURRENCY_SYMBOL}${purchaseRequest.totalAmount}
+🆔 *ID Compra:* ${purchaseId}
+          
+Espero confirmación. Gracias.`;
+          
+          const waUrl = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
+          // Open WhatsApp in new tab
+          window.open(waUrl, '_blank');
+      }
+
+      setPurchaseResult({ success: true, message: 'Redirigiendo a WhatsApp...' });
+      
       // Update local state to reflect sold numbers immediately
       const updatedLottery = {
         ...selectedLottery,
@@ -274,12 +293,17 @@ function App() {
                         </div>
                     )}
 
+                    <div className="bg-green-50 p-3 rounded-md text-xs text-green-800 border border-green-200 flex gap-2">
+                         <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                         <p>Al confirmar, se abrirá WhatsApp para enviar tu pedido al organizador.</p>
+                    </div>
+
                     <button 
                         type="submit"
                         disabled={selectedNumbers.length === 0 || purchasing}
-                        className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all ${purchasing || selectedNumbers.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all ${purchasing || selectedNumbers.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                        {purchasing ? 'Procesando...' : 'Confirmar Compra'}
+                        {purchasing ? 'Procesando...' : 'Pedir por WhatsApp'}
                     </button>
                 </form>
              </div>
@@ -295,9 +319,10 @@ function App() {
             <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
                 <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Compra Exitosa!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Solicitud Registrada!</h2>
             <p className="text-gray-500 mb-6">
-                Tus números han sido reservados. Se ha enviado un correo de confirmación a <strong>{userEmail}</strong>.
+                Tus números han sido reservados temporalmente. <br/>
+                <strong>Importante:</strong> Debes completar el pago y enviar el mensaje de WhatsApp al organizador para validar tu compra.
             </p>
             <button 
                 onClick={() => {
