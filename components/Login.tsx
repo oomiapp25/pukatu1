@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, Role } from '../types';
@@ -74,12 +75,6 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
       }
   };
 
-  const setDemoUser = (demoEmail: string, demoPass: string = '') => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setIsRegistering(false);
-  };
-
   return (
     <div className="min-h-[70vh] flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
@@ -95,20 +90,6 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
           </p>
         </div>
         
-        {!isRegistering && (
-            <div className="flex justify-center gap-2 mb-4">
-                <button onClick={() => setDemoUser('super@pukatu.com', 'Apamate.25')} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 border border-purple-200">
-                    Super Admin
-                </button>
-                <button onClick={() => setDemoUser('admin@pukatu.com', '123')} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 border border-blue-200">
-                    Admin (123)
-                </button>
-                <button onClick={() => setDemoUser('user@pukatu.com', '123')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 border border-green-200">
-                    Usuario (123)
-                </button>
-            </div>
-        )}
-
         {isRegistering ? (
             // REGISTER FORM
             <form className="mt-8 space-y-4" onSubmit={handleRegister}>
