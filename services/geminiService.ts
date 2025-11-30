@@ -1,18 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 
-let apiKey = '';
-try {
-  // Safely attempt to access process.env. 
-  // In Vite/React without proper config, this might throw ReferenceError if process is not defined.
-  if (typeof process !== 'undefined' && process.env) {
-    apiKey = process.env.API_KEY || '';
-  }
-} catch (e) {
-  console.warn("Environment variable access failed, using fallback.");
-}
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+// We assume process.env.API_KEY is available and valid in the execution context.
+const apiKey = process.env.API_KEY;
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey });
+// Initialize Gemini safely
+let ai: GoogleGenAI | null = null;
+if (apiKey) {
+    try {
+        ai = new GoogleGenAI({ apiKey });
+    } catch (e) {
+        console.warn("Failed to initialize GoogleGenAI", e);
+    }
+}
 
 export const getLuckyNumbers = async (
   lotteryTitle: string, 
@@ -20,7 +20,7 @@ export const getLuckyNumbers = async (
   count: number = 3
 ): Promise<number[]> => {
   
-  if (!apiKey) {
+  if (!ai) {
     console.warn("No API Key found for Gemini. returning random numbers.");
     const shuffled = [...availableNumbers].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
