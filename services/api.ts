@@ -4,9 +4,9 @@ import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
 
 // --- MOCK DATA (Fallback) ---
 let MOCK_USERS: User[] = [
-  { id: '1', email: 'super@pukatu.com', name: 'Super Admin', role: 'superadmin', password: '123' },
-  { id: '2', email: 'admin@pukatu.com', name: 'Admin Principal', role: 'admin', password: '123' },
-  { id: '3', email: 'user@pukatu.com', name: 'Juan Pérez', role: 'public', password: '123' }
+  { id: '1', email: 'super@pukatu.com', name: 'Super Admin', role: 'superadmin', password: '123', status: 'active' },
+  { id: '2', email: 'admin@pukatu.com', name: 'Admin Principal', role: 'admin', password: '123', status: 'active' },
+  { id: '3', email: 'user@pukatu.com', name: 'Juan Pérez', role: 'public', password: '123', status: 'active' }
 ];
 
 let MOCK_LOTTERIES: Lottery[] = [
@@ -66,7 +66,8 @@ export class PukatuAPI {
             email: request.email,
             name: request.name,
             role: request.role,
-            password: request.password
+            password: request.password,
+            status: 'active'
         };
         MOCK_USERS.push(newUser);
         this.user = newUser;
@@ -257,7 +258,8 @@ export class PukatuAPI {
             email: request.email,
             name: request.name,
             role: request.role,
-            password: request.password
+            password: request.password,
+            status: 'active'
         };
         MOCK_USERS.push(newUser);
         return { success: true, data: newUser };

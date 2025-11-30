@@ -17,6 +17,7 @@ export interface User {
   role: Role;
   token?: string;
   password?: string; // Added for mock auth logic
+  status?: 'active' | 'suspended'; // Added for user management
 }
 
 export interface RegisterRequest {

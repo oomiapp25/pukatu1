@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, SystemStats, Purchase, Lottery, Role } from '../types';
-import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus } from 'lucide-react';
+import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus, Eye, EyeOff, Lock } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../constants';
 
 interface DashboardProps {
@@ -14,7 +14,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, api }) => {
   const renderContent = () => {
     switch (user.role) {
       case 'superadmin':
-        return <SuperAdminPanel api={api} />;
+        return <SuperAdminPanel api={api} currentUser={user} />;
       case 'admin':
         return <AdminPanel api={api} user={user} />;
       case 'public':
@@ -42,7 +42,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, api }) => {
 
 // --- SUB COMPONENTS ---
 
-const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
+const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: User }) => {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [tab, setTab] = useState<'overview' | 'manage_lotteries' | 'users'>('overview');
   const [allLotteries, setAllLotteries] = useState<Lottery[]>([]);
@@ -101,7 +101,8 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
   };
 
   const handleEditUser = (user: User) => {
-      setEditingUser({ ...user });
+      // When editing, we clear the password field initially so we don't show the hash/current pass
+      setEditingUser({ ...user, password: '' });
   }
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -242,35 +243,49 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contraseña</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {allUsers.map(u => (
-                            <tr key={u.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.email}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`text-xs px-2 py-1 rounded border ${u.role === 'superadmin' ? 'bg-purple-50 border-purple-200 text-purple-700' : u.role === 'admin' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
-                                        {u.role}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                                    ••••••
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button onClick={() => handleEditUser(u)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Editar Usuario/Contraseña">
-                                        <Edit className="w-5 h-5" />
-                                    </button>
-                                    {u.email !== 'super@pukatu.com' && (
-                                        <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-900" title="Eliminar Usuario">
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                        {allUsers.map(u => {
+                            const isSuperUser = u.email === 'super@pukatu.com';
+                            const isSelf = u.email === currentUser.email;
+                            const canEdit = !isSuperUser && !isSelf;
+
+                            return (
+                                <tr key={u.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.email}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`text-xs px-2 py-1 rounded border ${u.role === 'superadmin' ? 'bg-purple-50 border-purple-200 text-purple-700' : u.role === 'admin' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                                            {u.role}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${u.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                                            {u.status === 'suspended' ? 'Suspendido' : 'Activo'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        {canEdit ? (
+                                            <>
+                                                <button onClick={() => handleEditUser(u)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Editar Rol/Estado/Contraseña">
+                                                    <Edit className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-900" title="Eliminar Usuario">
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-gray-400 flex justify-end gap-1 items-center">
+                                                <Lock className="w-4 h-4"/> Protegido
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
              </div>
@@ -310,7 +325,7 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Contraseña Inicial</label>
                             <input 
-                                type="text" 
+                                type="password" 
                                 value={newUserPass} 
                                 onChange={(e) => setNewUserPass(e.target.value)}
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-yellow-50 font-mono"
@@ -437,25 +452,37 @@ const SuperAdminPanel = ({ api }: { api: PukatuAPI }) => {
                                 disabled // Usually better not to change emails lightly as they are IDs
                             />
                         </div>
-                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Rol</label>
-                            <select 
-                                value={editingUser.role} 
-                                onChange={(e) => setEditingUser({...editingUser, role: e.target.value as Role})}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                                disabled={editingUser.email === 'super@pukatu.com'}
-                            >
-                                <option value="public">Usuario Público</option>
-                                <option value="admin">Admin</option>
-                                <option value="superadmin">Super Admin</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700">Rol</label>
+                                <select 
+                                    value={editingUser.role} 
+                                    onChange={(e) => setEditingUser({...editingUser, role: e.target.value as Role})}
+                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                >
+                                    <option value="public">Usuario Público</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="superadmin">Super Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Estado</label>
+                                <select 
+                                    value={editingUser.status || 'active'} 
+                                    onChange={(e) => setEditingUser({...editingUser, status: e.target.value as 'active' | 'suspended'})}
+                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                >
+                                    <option value="active">Activo</option>
+                                    <option value="suspended">Suspendido</option>
+                                </select>
+                            </div>
                         </div>
                         <div className="border-t pt-4 mt-2">
                              <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                                 <Key className="w-4 h-4"/> Restablecer Contraseña
                              </label>
                              <input 
-                                type="text" 
+                                type="password" 
                                 value={editingUser.password || ''} 
                                 onChange={(e) => setEditingUser({...editingUser, password: e.target.value})}
                                 className="block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono bg-yellow-50"
