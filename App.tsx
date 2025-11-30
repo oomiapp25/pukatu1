@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off, Clock } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -26,6 +26,9 @@ function App() {
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [purchaseResult, setPurchaseResult] = useState<{success: boolean, message: string} | null>(null);
   
+  // WhatsApp Logic State
+  const [lastWhatsAppUrl, setLastWhatsAppUrl] = useState<string | null>(null);
+
   // User Form State (Autofilled if logged in)
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
@@ -75,6 +78,7 @@ function App() {
     setSelectedLottery(lottery);
     setSelectedNumbers([]); 
     setPurchaseResult(null);
+    setLastWhatsAppUrl(null);
     setCurrentView(ViewState.LOTTERY_DETAIL);
   };
 
@@ -122,6 +126,7 @@ function App() {
     
     if (result.success && result.data) {
       const { purchaseId, contactPhone } = result.data;
+      let waUrl = '';
 
       // Prepare WhatsApp Redirect
       if (contactPhone) {
@@ -133,8 +138,10 @@ function App() {
           
 Espero confirmación. Gracias.`;
           
-          const waUrl = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
-          // Open WhatsApp in new tab
+          waUrl = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
+          setLastWhatsAppUrl(waUrl);
+          
+          // Try to open automatically
           window.open(waUrl, '_blank');
       }
 
@@ -379,23 +386,53 @@ Espero confirmación. Gracias.`;
 
   const renderConfirmation = () => (
      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
-            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center border border-gray-100">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-6">
+                <Clock className="h-8 w-8 text-yellow-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Solicitud Registrada!</h2>
-            <p className="text-gray-500 mb-6">
+            
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Solicitud Pendiente!</h2>
+            
+            <p className="text-gray-600 mb-6 text-sm">
                 Tus números han sido reservados temporalmente. <br/>
-                <strong>Importante:</strong> Debes completar el pago y enviar el mensaje de WhatsApp al organizador para validar tu compra.
+                <span className="font-semibold text-gray-900">Pasos para validar tu compra:</span>
             </p>
+
+            <ol className="text-left text-sm text-gray-600 space-y-3 mb-8 bg-gray-50 p-4 rounded-lg">
+                <li className="flex items-start gap-2">
+                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
+                    Envía el mensaje de confirmación por WhatsApp al administrador.
+                </li>
+                 <li className="flex items-start gap-2">
+                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
+                    Realiza el pago según las instrucciones que te den.
+                </li>
+                 <li className="flex items-start gap-2">
+                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
+                    El administrador aprobará tu compra y recibirás tu boleto.
+                </li>
+            </ol>
+            
+            {lastWhatsAppUrl && (
+                <a 
+                    href={lastWhatsAppUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-bold hover:bg-green-700 mb-4 flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-105"
+                >
+                    <MessageCircle className="w-5 h-5" /> Enviar Comprobante por WhatsApp
+                </a>
+            )}
+
             <button 
                 onClick={() => {
                     setPurchaseResult(null);
+                    setLastWhatsAppUrl(null);
                     setCurrentView(user ? ViewState.DASHBOARD : ViewState.HOME);
                 }}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700"
+                className="w-full bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium hover:bg-gray-50"
             >
-                {user ? 'Ir al Panel' : 'Volver al Inicio'}
+                {user ? 'Ir a Mis Compras' : 'Volver al Inicio'}
             </button>
         </div>
      </div>

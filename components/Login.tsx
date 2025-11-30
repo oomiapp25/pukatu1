@@ -92,7 +92,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
         
         {isRegistering ? (
             // REGISTER FORM
-            <form className="mt-8 space-y-4" onSubmit={handleRegister}>
+            <form className="mt-8 space-y-4" onSubmit={handleRegister} autoComplete="off">
                  <div>
                     <label className="sr-only">Nombre Completo</label>
                     <input
@@ -102,6 +102,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         placeholder="Nombre Completo"
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
+                        autoComplete="off"
                     />
                 </div>
                 <div>
@@ -113,6 +114,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         placeholder="Correo Electrónico"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
+                        autoComplete="off"
                     />
                 </div>
                 <div>
@@ -124,6 +126,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         placeholder="Contraseña"
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
+                        autoComplete="new-password"
                     />
                 </div>
                 <div>
@@ -154,7 +157,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
             </form>
         ) : (
             // LOGIN FORM
-            <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            <form className="mt-8 space-y-6" onSubmit={handleLogin} autoComplete="off">
             <div className="rounded-md shadow-sm -space-y-px">
                 <div>
                 <label htmlFor="email-address" className="sr-only">Correo Electrónico</label>
@@ -162,7 +165,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                     id="email-address"
                     name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="off"
                     required
                     className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                     placeholder="Dirección de correo"
@@ -177,7 +180,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         id="password"
                         name="password"
                         type="password"
-                        autoComplete="current-password"
+                        autoComplete="new-password"
                         required
                         className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                         placeholder="Contraseña"
