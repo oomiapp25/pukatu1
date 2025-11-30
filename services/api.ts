@@ -208,6 +208,23 @@ export class PukatuAPI {
     return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }), 'GET');
   }
 
+  async getMillionaireBag(): Promise<ApiResponse<any>> {
+    if (USE_MOCK_DATA) {
+      await new Promise(r => setTimeout(r, 600));
+      return { success: true, data: { currentAmount: 100000, drawDate: 'Próximo Viernes', description: 'Bolsa acumulada' } };
+    }
+    return this.fetchAPI(new URLSearchParams({ action: 'getMillionaireBag' }), 'GET');
+  }
+
+  async updateMillionaireBag(data: any): Promise<ApiResponse<boolean>> {
+    if (USE_MOCK_DATA) return { success: true, data: true };
+    const params = new URLSearchParams({
+        action: 'updateMillionaireBag',
+        data: JSON.stringify(data)
+    });
+    return this.fetchAPI(params, 'POST');
+  }
+
   async getAllUsers(): Promise<ApiResponse<User[]>> {
     if (USE_MOCK_DATA) return { success: true, data: MOCK_USERS };
     // GET for reading
@@ -247,6 +264,15 @@ export class PukatuAPI {
   async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
       if (USE_MOCK_DATA) return { success: true, data: true };
       return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }), 'POST');
+  }
+
+  async approveUser(userId: string): Promise<ApiResponse<boolean>> {
+    if (USE_MOCK_DATA) {
+      const user = MOCK_USERS.find(u => u.id === userId);
+      if (user) user.status = 'active';
+      return { success: true, data: true };
+    }
+    return this.fetchAPI(new URLSearchParams({ action: 'approveUser', targetUserId: userId }), 'POST');
   }
 
   // New method for Super Admin to create other users without logging in

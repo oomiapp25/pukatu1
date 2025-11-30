@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, SystemStats, Purchase, Lottery, Role } from '../types';
-import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus, Eye, EyeOff, Lock } from 'lucide-react';
+import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus, Eye, EyeOff, Lock, MessageCircle } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../constants';
 
 interface DashboardProps {
@@ -44,13 +44,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, api }) => {
 
 const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: User }) => {
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const [tab, setTab] = useState<'overview' | 'manage_lotteries' | 'users'>('overview');
+  const [tab, setTab] = useState<'overview' | 'manage_lotteries' | 'users' | 'millionaire_bag'>('overview');
   const [allLotteries, setAllLotteries] = useState<Lottery[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   
   // Edit State
   const [editingLottery, setEditingLottery] = useState<Lottery | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // Millionaire Bag State
+  const [bagData, setBagData] = useState<any>(null);
+  const [editingBag, setEditingBag] = useState<any>(null);
 
   // Create User State
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -72,6 +76,25 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
       }
       if (tab === 'users') {
           api.getAllUsers().then(res => res.success && setAllUsers(res.data || []));
+      }
+      if (tab === 'millionaire_bag') {
+          api.getMillionaireBag().then(res => {
+              if (res.success && res.data) {
+                  setBagData(res.data);
+                  setEditingBag(res.data);
+              }
+          });
+      }
+  };
+
+  const handleSaveBag = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const res = await api.updateMillionaireBag(editingBag);
+      if (res.success) {
+          alert('Bolsa Millonaria actualizada');
+          loadData();
+      } else {
+          alert('Error al actualizar');
       }
   };
 
@@ -121,6 +144,13 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
       }
   };
 
+  const handleApproveUser = async (userId: string) => {
+      if (confirm('¿Aprobar y activar este usuario?')) {
+          await api.approveUser(userId);
+          loadData();
+      }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
       e.preventDefault();
       if(!newUserName || !newUserEmail || !newUserPass) return;
@@ -164,6 +194,12 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                 className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'users' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
             >
                 Usuarios y Roles
+            </button>
+            <button 
+                onClick={() => setTab('millionaire_bag')}
+                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'millionaire_bag' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+            >
+                Gestionar Bolsa Millonaria
             </button>
         </div>
 
@@ -241,7 +277,7 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teléfono/Email</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -263,13 +299,18 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${u.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                                            {u.status === 'suspended' ? 'Suspendido' : 'Activo'}
+                                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${u.status === 'suspended' ? 'bg-red-100 text-red-800' : u.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                                            {u.status === 'suspended' ? 'Suspendido' : u.status === 'pending' ? 'Pendiente' : 'Activo'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         {canEdit ? (
                                             <>
+                                                {u.status === 'pending' && (
+                                                    <button onClick={() => handleApproveUser(u.id)} className="text-green-600 hover:text-green-900 mr-4" title="Aprobar Usuario">
+                                                        <CheckCircle className="w-5 h-5" />
+                                                    </button>
+                                                )}
                                                 <button onClick={() => handleEditUser(u)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Editar Rol/Estado/Contraseña">
                                                     <Edit className="w-5 h-5" />
                                                 </button>
@@ -289,6 +330,47 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                     </tbody>
                 </table>
              </div>
+        )}
+
+        {tab === 'millionaire_bag' && editingBag && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
+                <h3 className="text-xl font-bold mb-4 text-yellow-600 flex items-center gap-2">
+                    <DollarSign className="w-6 h-6"/> Configurar Bolsa Millonaria
+                </h3>
+                <form onSubmit={handleSaveBag} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Monto Acumulado ({CURRENCY_SYMBOL})</label>
+                        <input 
+                            type="number" 
+                            value={editingBag.currentAmount}
+                            onChange={(e) => setEditingBag({...editingBag, currentAmount: Number(e.target.value)})}
+                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2 text-2xl font-bold text-gray-700"
+                        />
+                    </div>
+                    <div>
+                         <label className="block text-sm font-medium text-gray-700">Fecha del Sorteo</label>
+                         <input 
+                            type="text" 
+                            value={editingBag.drawDate}
+                            onChange={(e) => setEditingBag({...editingBag, drawDate: e.target.value})}
+                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2"
+                            placeholder="Ej. Próximo Viernes"
+                        />
+                    </div>
+                     <div>
+                         <label className="block text-sm font-medium text-gray-700">Mensaje / Descripción</label>
+                         <textarea 
+                            value={editingBag.description}
+                            onChange={(e) => setEditingBag({...editingBag, description: e.target.value})}
+                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2"
+                            rows={3}
+                        />
+                    </div>
+                    <button type="submit" className="w-full bg-yellow-600 text-white font-bold py-2 rounded-md hover:bg-yellow-700">
+                        Actualizar Bolsa
+                    </button>
+                </form>
+            </div>
         )}
 
         {/* CREATE USER MODAL */}
@@ -313,13 +395,14 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                            <label className="block text-sm font-medium text-gray-700">Teléfono (Usuario)</label>
                             <input 
-                                type="email" 
+                                type="text" 
                                 value={newUserEmail} 
                                 onChange={(e) => setNewUserEmail(e.target.value)}
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                                 required
+                                placeholder="0412..."
                             />
                         </div>
                         <div>
@@ -443,13 +526,13 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                            <label className="block text-sm font-medium text-gray-700">Teléfono</label>
                             <input 
-                                type="email" 
+                                type="text" 
                                 value={editingUser.email} 
                                 onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                                disabled // Usually better not to change emails lightly as they are IDs
+                                disabled 
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -527,9 +610,30 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
     }, [tab, api, user]);
 
     const handleConfirm = async (id: string) => {
-        if(confirm('¿Confirmar este pago?')) {
-            await api.confirmPayment(id);
-            setPending(prev => prev.filter(p => p.id !== id));
+        const purchase = pending.find(p => p.id === id);
+        if (!purchase) return;
+
+        if(confirm(`¿Confirmar pago de ${purchase.buyerName} y enviar comprobante WhatsApp?`)) {
+            const res = await api.confirmPayment(id);
+            if (res.success) {
+                setPending(prev => prev.filter(p => p.id !== id));
+                
+                // Prepare WhatsApp Message
+                const message = `✅ *COMPROBANTE DE PAGO PUKATU*
+
+Hola *${purchase.buyerName}*, hemos confirmado tu participación.
+
+🏆 *Sorteo:* ${purchase.lotteryTitle}
+🔢 *Números:* ${purchase.selectedNumbers.join(', ')}
+💰 *Monto:* ${CURRENCY_SYMBOL}${purchase.totalAmount}
+📅 *Fecha:* ${new Date().toLocaleDateString()}
+
+¡Buena suerte! 🍀`;
+
+                // Open WhatsApp
+                const waUrl = `https://wa.me/${purchase.email}?text=${encodeURIComponent(message)}`;
+                window.open(waUrl, '_blank');
+            }
         }
     };
 
