@@ -1,8 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
-// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-// We allow a fallback to prevent the app from crashing in environments where process is undefined (pure browser).
-const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+// Access API Key using process.env.API_KEY as per strict guidelines
+const apiKey = process.env.API_KEY || '';
 
 // Initialize Gemini safely
 let ai: GoogleGenAI | null = null;
@@ -36,23 +35,33 @@ export const getLuckyNumbers = async (
       
       Reglas:
       1. Solo selecciona números de la lista proporcionada.
-      2. Devuelve SOLO un array JSON de enteros. Sin texto, sin markdown.
-      3. Ejemplo de salida: [5, 23, 89]
+      2. Devuelve los números como un array JSON de enteros.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.INTEGER
+          }
+        }
+      }
     });
 
-    const text = response.text || '';
+    const text = response.text;
     
-    // Clean up potential markdown formatting
-    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const numbers = JSON.parse(cleanedText);
+    if (!text) {
+        throw new Error("No text response from Gemini");
+    }
+
+    const numbers = JSON.parse(text);
 
     if (Array.isArray(numbers)) {
-      return numbers.map(n => Number(n));
+      return numbers.map((n: any) => Number(n));
     }
     
     throw new Error("Invalid format");
