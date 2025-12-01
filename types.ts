@@ -36,11 +36,12 @@ export interface Lottery {
   totalNumbers: number;
   pricePerNumber: number;
   soldNumbers: number[]; 
-  status: 'active' | 'completed' | 'upcoming';
+  status: 'active' | 'completed' | 'upcoming' | 'paused';
   drawDate: string;
   image: string;
   createdBy?: string; // email of admin
   contactPhone?: string; // WhatsApp number for purchase confirmation
+  winningNumber?: number; // The result of the draw
 }
 
 export interface PurchaseRequest {

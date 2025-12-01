@@ -229,7 +229,7 @@ export class PukatuAPI {
     if (USE_MOCK_DATA) return { success: true, data: true };
     const params = new URLSearchParams({
         action: 'updateMillionaireBag',
-        updates: JSON.stringify(data) // Changed from 'data' to 'updates' to match backend
+        updates: JSON.stringify(data)
     });
     return this.fetchAPI(params, 'POST');
   }
@@ -324,7 +324,6 @@ export class PukatuAPI {
         return { success: true, data: { ...lottery, id: '123', soldNumbers: [], status: 'active', image: '' } as Lottery };
     }
     
-    // Ensure all required fields are present or stringify complex ones
     const params = new URLSearchParams();
     params.append('action', 'createLottery');
     Object.keys(lottery).forEach(key => {
@@ -334,6 +333,24 @@ export class PukatuAPI {
         }
     });
     
+    return this.fetchAPI(params, 'POST');
+  }
+
+  async runLotteryDraw(lotteryId: string): Promise<ApiResponse<{winningNumber: number, status: string}>> {
+    if (USE_MOCK_DATA) {
+        // Mock draw logic
+        const lottery = MOCK_LOTTERIES.find(l => l.id === lotteryId);
+        if (!lottery || lottery.soldNumbers.length === 0) return { success: false, error: "No tickets sold" };
+        const randomIdx = Math.floor(Math.random() * lottery.soldNumbers.length);
+        const winner = lottery.soldNumbers[randomIdx];
+        lottery.winningNumber = winner;
+        return { success: true, data: { winningNumber: winner, status: 'completed' } };
+    }
+
+    const params = new URLSearchParams({
+        action: 'runLotteryDraw',
+        lotteryId: lotteryId
+    });
     return this.fetchAPI(params, 'POST');
   }
 
@@ -365,7 +382,6 @@ export class PukatuAPI {
     try {
         const trimmedUrl = API_BASE_URL.trim();
         
-        // CRITICAL CHECK: User provided a Library URL instead of a Web App URL
         if (trimmedUrl.includes('/macros/library/')) {
             return { success: false, error: 'CONFIGURATION_ERROR_LIBRARY_URL' } as any;
         }
@@ -376,12 +392,10 @@ export class PukatuAPI {
             if (this.token) params.append('token', this.token);
         }
 
-        // Add cache buster to prevent cached CORS failures
         const cacheBuster = `_cb=${new Date().getTime()}`;
 
         let response;
         if (method === 'GET') {
-            // Build query string for GET
             const url = new URL(trimmedUrl);
             params.forEach((value, key) => url.searchParams.append(key, value));
             url.searchParams.append('_cb', new Date().getTime().toString());
@@ -392,8 +406,6 @@ export class PukatuAPI {
                 credentials: 'omit'
             });
         } else {
-            // POST with URLSearchParams body
-            // We append cache buster to URL even for POST to ensure the endpoint hit is fresh
             const separator = trimmedUrl.includes('?') ? '&' : '?';
             const postUrl = `${trimmedUrl}${separator}${cacheBuster}`;
 
@@ -434,7 +446,6 @@ export class PukatuAPI {
         
         let msg = error.message || 'Error de conexión.';
         if (msg.includes('Failed to fetch')) {
-            // Return specific code that App.tsx recognizes
             return { success: false, error: 'CONNECTION_ERROR_CORS' } as any;
         }
         return { success: false, error: msg };

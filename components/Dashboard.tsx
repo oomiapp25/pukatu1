@@ -2,13 +2,43 @@
 import React, { useState, useEffect } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, SystemStats, Purchase, Lottery, Role } from '../types';
-import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus, Eye, EyeOff, Lock, MessageCircle } from 'lucide-react';
+import { Users, Ticket, DollarSign, CheckCircle, Clock, Plus, LayoutList, Trash2, Power, Edit, Shield, Save, X, Key, XCircle, UserPlus, Eye, EyeOff, Lock, MessageCircle, Dices, Image as ImageIcon, UploadCloud } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../constants';
 
 interface DashboardProps {
   user: User;
   api: PukatuAPI;
 }
+
+// Image compression helper
+const handleImageUpload = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600; // Resize to max 600px width
+        const scaleSize = MAX_WIDTH / img.width;
+        
+        // Calculate new dimensions
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
+        
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Compress to JPEG with 0.6 quality
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        resolve(dataUrl);
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, api }) => {
   const renderContent = () => {
@@ -26,12 +56,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, api }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h1 className="text-3xl font-bold text-gray-900">Panel de Control</h1>
-            <p className="text-gray-500">Bienvenido de nuevo, <span className="font-semibold text-blue-600">{user.name}</span></p>
+            <p className="text-gray-500">Bienvenido, <span className="font-semibold text-blue-600">{user.name}</span></p>
         </div>
-        <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase tracking-wide ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-gray-100 text-gray-800'}`}>
+        <span className={`self-start sm:self-center px-3 py-1 rounded-full text-sm font-bold uppercase tracking-wide ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-gray-100 text-gray-800'}`}>
             {user.role}
         </span>
       </div>
@@ -51,6 +81,9 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
   // Edit State
   const [editingLottery, setEditingLottery] = useState<Lottery | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  
+  // Image Preview State for editing
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   // Millionaire Bag State
   const [bagData, setBagData] = useState<any>(null);
@@ -87,6 +120,18 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
       }
   };
 
+  const handleRunDraw = async (lotteryId: string) => {
+      if(!confirm("¿Estás seguro de realizar el sorteo? Se elegirá un ganador al azar entre los tickets vendidos.")) return;
+      
+      const res = await api.runLotteryDraw(lotteryId);
+      if(res.success && res.data) {
+          alert(`¡Sorteo Realizado! El número ganador es: ${res.data.winningNumber}`);
+          loadData();
+      } else {
+          alert("Error: " + (res.error || "No se pudo realizar el sorteo"));
+      }
+  };
+
   const handleSaveBag = async (e: React.FormEvent) => {
       e.preventDefault();
       const res = await api.updateMillionaireBag(editingBag);
@@ -101,7 +146,7 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
   const handleDeleteLottery = async (id: string) => {
       if(confirm('¿ESTÁ SEGURO? Esta acción es irreversible y eliminará el sorteo para siempre.')) {
           await api.deleteLottery(id);
-          loadData(); // Reload
+          loadData(); 
       }
   };
 
@@ -112,6 +157,21 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
   
   const handleEditLottery = (lottery: Lottery) => {
       setEditingLottery({ ...lottery });
+      setImagePreview(lottery.image);
+  };
+
+  const handleLotteryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        try {
+            const compressed = await handleImageUpload(e.target.files[0]);
+            setImagePreview(compressed);
+            if (editingLottery) {
+                setEditingLottery({ ...editingLottery, image: compressed });
+            }
+        } catch (error) {
+            alert("Error al procesar la imagen");
+        }
+    }
   };
 
   const handleSaveLottery = async (e: React.FormEvent) => {
@@ -124,7 +184,6 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
   };
 
   const handleEditUser = (user: User) => {
-      // When editing, we clear the password field initially so we don't show the hash/current pass
       setEditingUser({ ...user, password: '' });
   }
 
@@ -160,7 +219,7 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
           email: newUserEmail,
           password: newUserPass,
           role: newUserRole,
-          status: 'active' // Super admin creates users as immediately active
+          status: 'active' 
       });
 
       if (res.success) {
@@ -177,89 +236,111 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
 
   return (
     <div className="space-y-6 relative">
-         <div className="flex space-x-2 border-b border-gray-200 pb-2 mb-4 overflow-x-auto">
-            <button 
-                onClick={() => setTab('overview')}
-                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'overview' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-                Resumen Global
-            </button>
-            <button 
-                onClick={() => setTab('manage_lotteries')}
-                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'manage_lotteries' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-                Gestión de Sorteos (Total)
-            </button>
-            <button 
-                onClick={() => setTab('users')}
-                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'users' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-                Usuarios y Roles
-            </button>
-            <button 
-                onClick={() => setTab('millionaire_bag')}
-                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${tab === 'millionaire_bag' ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-                Gestionar Bolsa Millonaria
-            </button>
+         <div className="flex space-x-2 border-b border-gray-200 pb-2 mb-4 overflow-x-auto custom-scrollbar">
+            {['overview', 'manage_lotteries', 'users', 'millionaire_bag'].map((t) => (
+                <button 
+                    key={t}
+                    onClick={() => setTab(t as any)}
+                    className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === t ? 'bg-white border-x border-t border-gray-200 text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                    {t === 'overview' ? 'Resumen' : t === 'manage_lotteries' ? 'Gestión Sorteos' : t === 'users' ? 'Usuarios' : 'Bolsa Millonaria'}
+                </button>
+            ))}
         </div>
 
         {tab === 'overview' && stats && (
             <div className="space-y-6 animate-fadeIn">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard icon={<Users className="text-blue-600"/>} label="Usuarios Totales" value={stats.totalUsers} />
                     <StatCard icon={<Ticket className="text-purple-600"/>} label="Loterías Activas" value={stats.activeLotteries} />
                     <StatCard icon={<DollarSign className="text-green-600"/>} label="Ingresos Totales" value={`${CURRENCY_SYMBOL}${stats.totalRevenue}`} />
                     <StatCard icon={<Clock className="text-orange-600"/>} label="Pagos Pendientes" value={stats.pendingPayments} />
                 </div>
-                
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Shield className="w-5 h-5 text-gray-400"/> Registro de Auditoría (Simulado)</h3>
-                    <div className="space-y-3">
-                        <AuditRow action="Login SuperAdmin" user="super@pukatu.com" time="Hace 1 min" />
-                        <AuditRow action="Crear Sorteo" user="admin@pukatu.com" time="Hace 2 horas" />
-                        <AuditRow action="Confirmar Pago" user="admin@pukatu.com" time="Hace 3 horas" />
-                    </div>
-                </div>
             </div>
         )}
 
         {tab === 'manage_lotteries' && (
-             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creador</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {allLotteries.map(l => (
-                            <tr key={l.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{l.title}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{l.createdBy}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${l.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+             <div className="space-y-4">
+                {/* Mobile View (Cards) */}
+                <div className="md:hidden space-y-4">
+                    {allLotteries.map(l => (
+                         <div key={l.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                             <div className="flex items-start gap-3">
+                                <img src={l.image} alt="" className="w-16 h-16 rounded object-cover flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-gray-900 truncate">{l.title}</h4>
+                                    <p className="text-sm text-gray-500">{l.createdBy}</p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${l.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {l.status}
                                     </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button onClick={() => handleEditLottery(l)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Editar Detalles">
-                                        <Edit className="w-5 h-5" />
-                                    </button>
-                                    <button onClick={() => handleToggleStatus(l.id)} className="text-blue-600 hover:text-blue-900 mr-4" title="Cambiar Estado">
-                                        <Power className="w-5 h-5" />
-                                    </button>
-                                    <button onClick={() => handleDeleteLottery(l.id)} className="text-red-600 hover:text-red-900" title="Eliminar Definitivamente">
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                </td>
+                                </div>
+                             </div>
+                             <div className="mt-4 flex justify-between gap-2 border-t pt-3">
+                                <button onClick={() => handleEditLottery(l)} className="flex-1 bg-gray-50 py-2 rounded text-indigo-600 text-sm font-medium">Editar</button>
+                                <button onClick={() => handleToggleStatus(l.id)} className="flex-1 bg-gray-50 py-2 rounded text-blue-600 text-sm font-medium">Estado</button>
+                                {l.status === 'active' && l.soldNumbers.length > 0 && (
+                                     <button onClick={() => handleRunDraw(l.id)} className="flex-1 bg-yellow-50 py-2 rounded text-yellow-700 text-sm font-medium flex items-center justify-center gap-1">
+                                        <Dices className="w-4 h-4"/>
+                                     </button>
+                                )}
+                             </div>
+                             <button onClick={() => handleDeleteLottery(l.id)} className="w-full mt-2 text-red-500 text-xs py-1">Eliminar Sorteo</button>
+                         </div>
+                    ))}
+                </div>
+
+                {/* Desktop View (Table) */}
+                <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sorteo</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creador</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {allLotteries.map(l => (
+                                <tr key={l.id}>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center">
+                                            <div className="h-10 w-10 flex-shrink-0">
+                                                <img className="h-10 w-10 rounded-md object-cover" src={l.image} alt="" />
+                                            </div>
+                                            <div className="ml-4">
+                                                <div className="text-sm font-medium text-gray-900">{l.title}</div>
+                                                {l.winningNumber && <div className="text-xs text-yellow-600 font-bold">Ganador: #{l.winningNumber}</div>}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{l.createdBy}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${l.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {l.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        {l.status === 'active' && l.soldNumbers.length > 0 && (
+                                            <button onClick={() => handleRunDraw(l.id)} className="text-yellow-600 hover:text-yellow-900 mr-4" title="Realizar Sorteo">
+                                                <Dices className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                        <button onClick={() => handleEditLottery(l)} className="text-indigo-600 hover:text-indigo-900 mr-4" title="Editar Detalles">
+                                            <Edit className="w-5 h-5" />
+                                        </button>
+                                        <button onClick={() => handleToggleStatus(l.id)} className="text-blue-600 hover:text-blue-900 mr-4" title="Cambiar Estado">
+                                            <Power className="w-5 h-5" />
+                                        </button>
+                                        <button onClick={() => handleDeleteLottery(l.id)} className="text-red-600 hover:text-red-900" title="Eliminar Definitivamente">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
              </div>
         )}
 
@@ -271,14 +352,31 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                         onClick={() => setShowCreateUserModal(true)}
                         className="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-700 flex items-center gap-2"
                     >
-                        <UserPlus className="w-4 h-4" /> Agregar Usuario
+                        <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Agregar</span>
                     </button>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200">
+                {/* Mobile Friendly User List */}
+                <div className="block md:hidden">
+                    {allUsers.map(u => (
+                        <div key={u.id} className="p-4 border-b last:border-0 flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-gray-900">{u.name}</p>
+                                <p className="text-sm text-gray-500">{u.email}</p>
+                                <span className="text-xs text-blue-600 bg-blue-50 px-2 rounded mt-1 inline-block">{u.role}</span>
+                            </div>
+                            {u.status === 'pending' && <button onClick={() => handleApproveUser(u.id)} className="text-green-600"><CheckCircle className="w-6 h-6"/></button>}
+                            {u.email !== currentUser.email && u.email !== 'super@pukatu.com' && (
+                                <button onClick={() => handleEditUser(u)} className="text-gray-400 ml-3"><Edit className="w-5 h-5"/></button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+                {/* Desktop User Table */}
+                <table className="hidden md:table min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teléfono/Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -321,7 +419,7 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                                             </>
                                         ) : (
                                             <span className="text-gray-400 flex justify-end gap-1 items-center">
-                                                <Lock className="w-4 h-4"/> Protegido
+                                                <Lock className="w-4 h-4"/>
                                             </span>
                                         )}
                                     </td>
@@ -351,11 +449,10 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                     <div>
                          <label className="block text-sm font-medium text-gray-700">Fecha del Sorteo</label>
                          <input 
-                            type="text" 
+                            type="date" 
                             value={editingBag.drawDate}
                             onChange={(e) => setEditingBag({...editingBag, drawDate: e.target.value})}
                             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm border p-2"
-                            placeholder="Ej. Próximo Viernes"
                         />
                     </div>
                      <div>
@@ -376,8 +473,8 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
 
         {/* CREATE USER MODAL */}
         {showCreateUserModal && (
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
                     <div className="flex justify-between items-center p-5 border-b border-gray-200 rounded-t-lg bg-gray-50">
                         <h3 className="text-xl font-semibold text-gray-900">Agregar Nuevo Usuario</h3>
                         <button onClick={() => setShowCreateUserModal(false)} className="text-gray-400 hover:text-gray-900">
@@ -428,7 +525,6 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                                 <option value="admin">Administrador</option>
                                 <option value="superadmin">Super Admin</option>
                             </select>
-                            <p className="text-xs text-gray-500 mt-1">Los administradores pueden crear y gestionar sorteos.</p>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
@@ -446,8 +542,8 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
 
         {/* EDIT LOTTERY MODAL */}
         {editingLottery && (
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-                <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full m-4">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+                <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center p-5 border-b border-gray-200 rounded-t-lg bg-gray-50">
                         <h3 className="text-xl font-semibold text-gray-900">Editar Sorteo</h3>
                         <button onClick={() => setEditingLottery(null)} className="text-gray-400 hover:text-gray-900">
@@ -464,6 +560,19 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                             />
                         </div>
+                        
+                        {/* Image Upload for Editing */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Imagen del Sorteo</label>
+                            <div className="mt-1 flex items-center gap-4">
+                                {imagePreview && <img src={imagePreview} className="w-16 h-16 object-cover rounded" />}
+                                <label className="cursor-pointer bg-white border border-gray-300 rounded-md shadow-sm py-2 px-4 flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    <UploadCloud className="w-4 h-4"/> Subir Nueva
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleLotteryImageChange} />
+                                </label>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Premio</label>
@@ -477,8 +586,8 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Fecha Sorteo</label>
                                 <input 
-                                    type="date" 
-                                    value={editingLottery.drawDate} 
+                                    type="datetime-local" 
+                                    value={editingLottery.drawDate ? editingLottery.drawDate.substring(0, 16) : ''} 
                                     onChange={(e) => setEditingLottery({...editingLottery, drawDate: e.target.value})}
                                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                                 />
@@ -508,8 +617,8 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
 
         {/* EDIT USER MODAL */}
         {editingUser && (
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
                     <div className="flex justify-between items-center p-5 border-b border-gray-200 rounded-t-lg bg-gray-50">
                         <h3 className="text-xl font-semibold text-gray-900">Editar Usuario</h3>
                         <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-900">
@@ -572,7 +681,6 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
                                 className="block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono bg-yellow-50"
                                 placeholder="Nueva contraseña"
                             />
-                             <p className="text-xs text-gray-500 mt-1">Escribe aquí para cambiar la contraseña del usuario.</p>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
@@ -600,6 +708,9 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
     const [newTitle, setNewTitle] = useState('');
     const [newPrize, setNewPrize] = useState('');
     const [newPhone, setNewPhone] = useState('');
+    const [newImage, setNewImage] = useState<string>('');
+    const [newDate, setNewDate] = useState<string>('');
+    const [previewImg, setPreviewImg] = useState<string>('');
 
     useEffect(() => {
         if (tab === 'payments') {
@@ -619,7 +730,6 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
             if (res.success) {
                 setPending(prev => prev.filter(p => p.id !== id));
                 
-                // Prepare WhatsApp Message
                 const message = `✅ *COMPROBANTE DE PAGO PUKATU*
 
 Hola *${purchase.buyerName}*, hemos confirmado tu participación.
@@ -631,7 +741,6 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
 
 ¡Buena suerte! 🍀`;
 
-                // Open WhatsApp
                 const waUrl = `https://wa.me/${purchase.email}?text=${encodeURIComponent(message)}`;
                 window.open(waUrl, '_blank');
             }
@@ -644,6 +753,18 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
             setPending(prev => prev.filter(p => p.id !== id));
         }
     };
+    
+    const onImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            try {
+                const compressed = await handleImageUpload(e.target.files[0]);
+                setNewImage(compressed);
+                setPreviewImg(compressed);
+            } catch (error) {
+                alert("Error al procesar la imagen");
+            }
+        }
+    };
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -653,18 +774,33 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
             pricePerNumber: 10,
             totalNumbers: 100,
             description: "Nuevo sorteo creado por admin",
-            contactPhone: newPhone
+            contactPhone: newPhone,
+            image: newImage || undefined,
+            drawDate: newDate
         });
         alert('Sorteo creado exitosamente');
         setTab('my_lotteries');
         setNewTitle('');
         setNewPrize('');
         setNewPhone('');
+        setNewImage('');
+        setPreviewImg('');
+    };
+    
+    const handleRunDraw = async (lotteryId: string) => {
+        if(!confirm("¿Estás seguro de realizar el sorteo? Se elegirá un ganador al azar.")) return;
+        const res = await api.runLotteryDraw(lotteryId);
+        if(res.success && res.data) {
+             alert(`¡Sorteo Realizado! Ganador: ${res.data.winningNumber}`);
+             api.getLotteriesByUser(user.email, user.role).then(res => res.success && setMyLotteries(res.data || []));
+        } else {
+            alert("Error: " + (res.error));
+        }
     };
 
     return (
         <div>
-            <div className="flex space-x-4 mb-6 overflow-x-auto pb-2">
+            <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 custom-scrollbar">
                 <button 
                     onClick={() => setTab('my_lotteries')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap ${tab === 'my_lotteries' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'}`}
@@ -693,7 +829,20 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
                             <label className="block text-sm font-medium text-gray-700">Título del Sorteo</label>
                             <input value={newTitle} onChange={e => setNewTitle(e.target.value)} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ej. Gran Rifa Navideña" required />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        
+                        {/* Image Upload */}
+                        <div>
+                             <label className="block text-sm font-medium text-gray-700">Imagen</label>
+                             <div className="mt-1 flex items-center gap-4">
+                                {previewImg && <img src={previewImg} className="w-20 h-20 object-cover rounded shadow" />}
+                                <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 flex items-center gap-2">
+                                    <UploadCloud className="w-4 h-4"/> Subir Imagen
+                                    <input type="file" accept="image/*" className="hidden" onChange={onImageChange} />
+                                </label>
+                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label className="block text-sm font-medium text-gray-700">Premio</label>
                                 <input value={newPrize} onChange={e => setNewPrize(e.target.value)} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="$1000" required />
@@ -701,6 +850,10 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">WhatsApp de Contacto</label>
                                 <input value={newPhone} onChange={e => setNewPhone(e.target.value)} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" placeholder="Ej. 584121234567" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Fecha del Sorteo</label>
+                                <input value={newDate} onChange={e => setNewDate(e.target.value)} type="datetime-local" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2" required />
                             </div>
                         </div>
                         <button type="submit" className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Publicar Sorteo</button>
@@ -713,12 +866,23 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
                     {myLotteries.length === 0 ? <p className="text-gray-500">No tienes sorteos activos.</p> : 
                         myLotteries.map(l => (
                             <div key={l.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                                <h4 className="font-bold text-lg">{l.title}</h4>
-                                <p className="text-sm text-gray-500">Premio: {l.prize}</p>
-                                <div className="mt-2 flex justify-between text-sm">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-bold text-lg">{l.title}</h4>
+                                        <p className="text-sm text-gray-500">Premio: {l.prize}</p>
+                                    </div>
+                                    <img src={l.image} className="w-12 h-12 object-cover rounded" />
+                                </div>
+                                <div className="mt-2 flex justify-between text-sm items-center">
                                     <span>Vendidos: {l.soldNumbers.length}/{l.totalNumbers}</span>
                                     <span className={`font-semibold ${l.status === 'active' ? 'text-green-600' : 'text-gray-400'}`}>{l.status}</span>
                                 </div>
+                                {l.winningNumber && <div className="mt-2 bg-yellow-50 p-2 text-center rounded text-yellow-800 font-bold">Ganador: #{l.winningNumber}</div>}
+                                {l.status === 'active' && l.soldNumbers.length > 0 && (
+                                     <button onClick={() => handleRunDraw(l.id)} className="mt-3 w-full bg-indigo-50 text-indigo-700 py-1.5 rounded font-medium text-sm flex items-center justify-center gap-2 hover:bg-indigo-100">
+                                         <Dices className="w-4 h-4"/> Sortear
+                                     </button>
+                                )}
                             </div>
                         ))
                     }
@@ -727,7 +891,24 @@ Hola *${purchase.buyerName}*, hemos confirmado tu participación.
 
             {tab === 'payments' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    {/* Mobile Payment Cards */}
+                    <div className="md:hidden">
+                        {pending.length === 0 ? <p className="p-4 text-center text-gray-500">No hay pagos</p> : 
+                            pending.map(p => (
+                                <div key={p.id} className="p-4 border-b">
+                                    <p className="font-bold">{p.buyerName}</p>
+                                    <p className="text-sm text-gray-600">{p.lotteryTitle}</p>
+                                    <p className="font-bold text-lg mt-1">{CURRENCY_SYMBOL}{p.totalAmount}</p>
+                                    <div className="flex gap-2 mt-3">
+                                        <button onClick={() => handleConfirm(p.id)} className="flex-1 bg-green-600 text-white py-2 rounded text-sm">Confirmar</button>
+                                        <button onClick={() => handleReject(p.id)} className="flex-1 bg-red-100 text-red-700 py-2 rounded text-sm">Rechazar</button>
+                                    </div>
+                                </div>
+                            ))
+                        }
+                    </div>
+
+                    <table className="hidden md:table min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
@@ -808,6 +989,7 @@ const UserPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
                              <div>
                                  <h4 className="font-bold">{l.title}</h4>
                                  <p className="text-sm text-gray-500">Premio: {l.prize}</p>
+                                 {l.winningNumber && <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 rounded">Ganador: {l.winningNumber}</span>}
                              </div>
                          </div>
                      ))}
@@ -825,16 +1007,5 @@ const StatCard = ({ icon, label, value }: { icon: any, label: string, value: str
             <p className="text-sm text-gray-500">{label}</p>
             <p className="text-xl font-bold text-gray-900">{value}</p>
         </div>
-    </div>
-);
-
-const AuditRow = ({ action, user, time }: { action: string, user: string, time: string }) => (
-    <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-2 last:border-0">
-        <div>
-            <span className="font-medium text-gray-900">{action}</span>
-            <span className="text-gray-500 mx-2">•</span>
-            <span className="text-gray-600">{user}</span>
-        </div>
-        <span className="text-gray-400">{time}</span>
     </div>
 );

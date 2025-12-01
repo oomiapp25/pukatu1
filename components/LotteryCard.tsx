@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Lottery } from '../types';
-import { Trophy, Calendar, Users } from 'lucide-react';
+import { Trophy, Calendar, Users, Award } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../constants';
 
 interface LotteryCardProps {
@@ -13,9 +14,19 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, onClick }) => {
 
   return (
     <div 
-      className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 overflow-hidden cursor-pointer flex flex-col h-full"
+      className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 overflow-hidden cursor-pointer flex flex-col h-full relative"
       onClick={() => onClick(lottery)}
     >
+      {/* Winner Overlay */}
+      {lottery.winningNumber && (
+          <div className="absolute top-0 right-0 z-30 m-2">
+              <div className="bg-yellow-400 text-yellow-900 font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1 animate-bounce">
+                  <Award className="w-4 h-4" />
+                  <span>#{lottery.winningNumber}</span>
+              </div>
+          </div>
+      )}
+
       <div className="relative h-48 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
         <img 
@@ -62,7 +73,7 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, onClick }) => {
                     <span className="text-xs text-gray-400 font-normal ml-1">/ boleto</span>
                 </span>
                 <button className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                    Jugar
+                    {lottery.winningNumber ? 'Ver Resultados' : 'Jugar'}
                 </button>
             </div>
         </div>
