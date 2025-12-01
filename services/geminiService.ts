@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 
 // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-// We assume process.env.API_KEY is available and valid in the execution context.
-const apiKey = process.env.API_KEY;
+// We allow a fallback to prevent the app from crashing in environments where process is undefined (pure browser).
+const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
 
 // Initialize Gemini safely
 let ai: GoogleGenAI | null = null;
