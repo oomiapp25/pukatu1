@@ -10,16 +10,15 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     build: {
       outDir: 'dist',
-      emptyOutDir: true, // Forzar limpieza de archivos viejos
+      emptyOutDir: true,
     },
     define: {
-      // Definir variables críticas
+      // Inyección segura de variables
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || ''),
       
-      // MOCK DE SUPABASE: Variables falsas para silenciar errores de código residual
+      // MOCK DE SUPABASE: Valores falsos para evitar que la app se rompa por código residual
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
-      // Definir también en process.env por si acaso
       'process.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
     }
