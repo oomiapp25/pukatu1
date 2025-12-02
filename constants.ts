@@ -13,8 +13,8 @@ const getEnvVar = (key: string, fallback: string) => {
   return fallback;
 };
 
-// URL DE RESPALDO (HARDCODED) - ESTA ES LA URL QUE FUNCIONA
-const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzpo4kk1I5q7BlyuqOjhmeVtil_29oVdu57O0op8293ZWZFvu1BFzPkz7Lk8DqjHkjr/exec';
+// URL DE RESPALDO (HARDCODED) - ACTUALIZADA CON TU NUEVO SCRIPT
+const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbx0AVjCaO-d45BBEZ4Hfdeqk0EfYE_eewwny0njIwQ21FRRL8EN92WoqVbmeezEjhQn/exec';
 
 // Intentamos leer de Vercel, si no existe (porque falló la config), usamos la DEFAULT_URL
 export const API_BASE_URL = getEnvVar('VITE_GAS_URL', DEFAULT_URL); 
