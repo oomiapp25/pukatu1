@@ -8,14 +8,20 @@ export default defineConfig(({ mode }) => {
   
   return {
     plugins: [react()],
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true, // Forzar limpieza de archivos viejos
+    },
     define: {
       // Definir variables críticas
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || ''),
       
-      // MOCK DE SUPABASE: Definimos estos valores como cadenas vacías para silenciar 
-      // el error "Missing Supabase environment variables" si algún archivo residual las busca.
+      // MOCK DE SUPABASE: Variables falsas para silenciar errores de código residual
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
+      // Definir también en process.env por si acaso
+      'process.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
+      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
     }
   }
 })
