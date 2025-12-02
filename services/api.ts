@@ -33,6 +33,7 @@ export class PukatuAPI {
   private token: string | null = null;
 
   constructor() {
+    console.log("PUKATU API V6 INITIALIZED - GOOGLE SHEETS ONLY");
     const storedUser = localStorage.getItem('pukatu_user');
     const storedToken = localStorage.getItem('pukatu_token');
     if (storedUser) {
@@ -57,8 +58,9 @@ export class PukatuAPI {
     localStorage.removeItem('pukatu_token');
   }
 
-  // 🔐 AUTH REGISTER (Self-Registration)
-  async register(request: RegisterRequest): Promise<ApiResponse<User>> {
+  // 🔐 AUTH REGISTER (RENAMED TO FORCE UPDATE)
+  async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
+    console.log("ATTEMPTING REGISTER via GAS:", request.email);
     // Sanitize input
     const safeEmail = request.email ? String(request.email).trim() : '';
 
@@ -102,8 +104,9 @@ export class PukatuAPI {
     return response;
   }
 
-  // 🔐 AUTH LOGIN
-  async login(email: string, password?: string): Promise<ApiResponse<User>> {
+  // 🔐 AUTH LOGIN (RENAMED TO FORCE UPDATE)
+  async loginGAS(email: string, password?: string): Promise<ApiResponse<User>> {
+    console.log("ATTEMPTING LOGIN via GAS:", email);
     const safeEmail = email ? String(email).trim() : '';
 
     if (USE_MOCK_DATA) {
@@ -381,6 +384,7 @@ export class PukatuAPI {
   private async fetchAPI(params: URLSearchParams, method: 'GET' | 'POST' = 'POST') {
     try {
         const trimmedUrl = API_BASE_URL.trim();
+        console.log("Calling GAS URL:", trimmedUrl, params.toString());
         
         if (trimmedUrl.includes('/macros/library/')) {
             return { success: false, error: 'CONFIGURATION_ERROR_LIBRARY_URL' } as any;

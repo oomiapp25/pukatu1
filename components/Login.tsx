@@ -31,13 +31,15 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
     setError('');
 
     try {
-      const response = await api.login(email, password);
+      console.log("Calling loginGAS...");
+      const response = await api.loginGAS(email, password);
       if (response.success && response.data) {
         onLoginSuccess(response.data);
       } else {
         setError(response.error || 'Login fallido');
       }
     } catch (err) {
+      console.error(err);
       setError('Error de conexión');
     } finally {
       setLoading(false);
@@ -56,7 +58,8 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
       }
 
       try {
-          const response = await api.register({
+          console.log("Calling registerGAS...");
+          const response = await api.registerGAS({
               name: regName,
               email: regEmail,
               password: regPassword,
@@ -69,6 +72,7 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
               setError(response.error || 'Registro fallido');
           }
       } catch (err) {
+          console.error(err);
           setError('Error de conexión');
       } finally {
           setLoading(false);

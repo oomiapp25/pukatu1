@@ -13,14 +13,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
     },
     define: {
-      // Inyección segura de variables
+      // Solo inyectamos lo necesario para Gemini y GAS
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || ''),
-      
-      // MOCK DE SUPABASE: Valores falsos para evitar que la app se rompa por código residual
-      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
-      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
-      'process.env.VITE_SUPABASE_URL': JSON.stringify('https://placeholder.supabase.co'),
-      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('placeholder_key'),
     }
   }
 })
