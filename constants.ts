@@ -19,6 +19,10 @@ const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbx0AVjCaO-d45BBEZ4H
 // Intentamos leer de Vercel, si no existe (porque falló la config), usamos la DEFAULT_URL
 export const API_BASE_URL = getEnvVar('VITE_GAS_URL', DEFAULT_URL); 
 
+// URL DEL WEBHOOK DE ZAPIER (Opcional)
+// Puedes configurar esto en Vercel como VITE_ZAPIER_WEBHOOK_URL
+export const ZAPIER_WEBHOOK_URL = getEnvVar('VITE_ZAPIER_WEBHOOK_URL', '');
+
 // Toggle this to false when you have deployed your backend
 export const USE_MOCK_DATA = false;
 

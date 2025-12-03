@@ -1,6 +1,6 @@
 
 import { Lottery, PurchaseRequest, ApiResponse, User, Purchase, SystemStats, Role, RegisterRequest } from '../types';
-import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
+import { API_BASE_URL, USE_MOCK_DATA, ZAPIER_WEBHOOK_URL } from '../constants';
 
 // --- MOCK DATA (Fallback) ---
 let MOCK_USERS: User[] = [
@@ -58,10 +58,9 @@ export class PukatuAPI {
     localStorage.removeItem('pukatu_token');
   }
 
-  // 🔐 AUTH REGISTER (RENAMED TO FORCE UPDATE)
+  // 🔐 AUTH REGISTER
   async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
     console.log("ATTEMPTING REGISTER via GAS:", request.email);
-    // Sanitize input
     const safeEmail = request.email ? String(request.email).trim() : '';
 
     if (USE_MOCK_DATA) {
@@ -93,7 +92,6 @@ export class PukatuAPI {
         params.append('status', request.status);
     }
 
-    // POST for sensitive data
     const response = await this.fetchAPI(params, 'POST');
     if (response.success && response.data) {
          this.user = response.data;
@@ -104,7 +102,7 @@ export class PukatuAPI {
     return response;
   }
 
-  // 🔐 AUTH LOGIN (RENAMED TO FORCE UPDATE)
+  // 🔐 AUTH LOGIN
   async loginGAS(email: string, password?: string): Promise<ApiResponse<User>> {
     console.log("ATTEMPTING LOGIN via GAS:", email);
     const safeEmail = email ? String(email).trim() : '';
@@ -134,7 +132,6 @@ export class PukatuAPI {
         password: password || ''
     });
     
-    // POST for security
     const response = await this.fetchAPI(params, 'POST');
     
     if (response.success && response.data) {
@@ -166,9 +163,8 @@ export class PukatuAPI {
     
     const params = new URLSearchParams({
         action: 'getLotteriesByUser',
-        targetUserEmail: userEmail // We send this specific param for the query
+        targetUserEmail: userEmail
     });
-    // GET for reading data
     return this.fetchAPI(params, 'GET');
   }
 
@@ -179,7 +175,6 @@ export class PukatuAPI {
       await new Promise(r => setTimeout(r, 500));
       return { success: true, data: MOCK_LOTTERIES.filter(l => l.status === 'active') };
     }
-    // GET for reading data
     return this.fetchAPI(new URLSearchParams({ action: 'getActiveLotteries' }), 'GET');
   }
 
@@ -205,8 +200,42 @@ export class PukatuAPI {
         selectedNumbers: JSON.stringify(request.selectedNumbers),
         totalAmount: request.totalAmount.toString()
     });
-    // POST for writing
-    return this.fetchAPI(params, 'POST');
+
+    // 1. Send to Google Sheets (Database)
+    const response = await this.fetchAPI(params, 'POST');
+
+    // 2. Send to Zapier Webhook (Automation) - Fire and Forget
+    if (response.success && ZAPIER_WEBHOOK_URL) {
+        this.sendToZapier({
+            event: 'new_purchase',
+            timestamp: new Date().toISOString(),
+            data: {
+                ...request,
+                purchaseId: response.data?.purchaseId,
+                status: 'pending'
+            }
+        });
+    }
+
+    return response;
+  }
+  
+  // ZAPIER INTEGRATION
+  private async sendToZapier(payload: any) {
+      try {
+          if (!ZAPIER_WEBHOOK_URL) return;
+          console.log("Sending to Zapier:", payload);
+          await fetch(ZAPIER_WEBHOOK_URL, {
+              method: 'POST',
+              mode: 'no-cors', // Opaque request to avoid CORS issues with Zapier hooks
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(payload)
+          });
+      } catch (e) {
+          console.warn("Zapier Webhook failed", e);
+      }
   }
 
   // --- SUPER ADMIN METHODS ---
@@ -216,7 +245,6 @@ export class PukatuAPI {
       await new Promise(r => setTimeout(r, 600));
       return { success: true, data: { totalUsers: 10, totalAdmins: 2, totalLotteries: 5, activeLotteries: 3, totalRevenue: 1000, pendingPayments: 1 } };
     }
-    // GET for reading
     return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }), 'GET');
   }
 
@@ -239,7 +267,6 @@ export class PukatuAPI {
 
   async getAllUsers(): Promise<ApiResponse<User[]>> {
     if (USE_MOCK_DATA) return { success: true, data: MOCK_USERS };
-    // GET for reading
     return this.fetchAPI(new URLSearchParams({ action: 'getAllUsers' }), 'GET');
   }
 
@@ -287,7 +314,6 @@ export class PukatuAPI {
     return this.fetchAPI(new URLSearchParams({ action: 'approveUser', targetUserId: userId }), 'POST');
   }
 
-  // New method for Super Admin to create other users without logging in
   async adminCreateUser(request: RegisterRequest): Promise<ApiResponse<User>> {
     if (USE_MOCK_DATA) {
         await new Promise(r => setTimeout(r, 800));
@@ -311,12 +337,10 @@ export class PukatuAPI {
         role: request.role
     });
 
-    // Explicitly send status if provided (e.g. 'active' from Super Admin)
     if (request.status) {
         params.append('status', request.status);
     }
     
-    // Call API but DO NOT update local session state
     return this.fetchAPI(params, 'POST');
   }
 
@@ -341,7 +365,6 @@ export class PukatuAPI {
 
   async runLotteryDraw(lotteryId: string): Promise<ApiResponse<{winningNumber: number, status: string}>> {
     if (USE_MOCK_DATA) {
-        // Mock draw logic
         const lottery = MOCK_LOTTERIES.find(l => l.id === lotteryId);
         if (!lottery || lottery.soldNumbers.length === 0) return { success: false, error: "No tickets sold" };
         const randomIdx = Math.floor(Math.random() * lottery.soldNumbers.length);
@@ -359,7 +382,6 @@ export class PukatuAPI {
 
   async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
     if (USE_MOCK_DATA) return { success: true, data: [] };
-    // GET for reading
     return this.fetchAPI(new URLSearchParams({ action: 'getPendingPayments' }), 'GET');
   }
 
@@ -376,7 +398,6 @@ export class PukatuAPI {
   // --- USER METHODS ---
   async getMyPurchases(): Promise<ApiResponse<Purchase[]>> {
     if (USE_MOCK_DATA) return { success: true, data: [] };
-    // GET for reading
     return this.fetchAPI(new URLSearchParams({ action: 'getMyPurchases' }), 'GET');
   }
 
@@ -432,7 +453,6 @@ export class PukatuAPI {
             return JSON.parse(text);
         } catch (e) {
             console.error("JSON Parse Error. Raw response:", text);
-            
             if (text.includes("script completed but did not return anything")) {
                 return { success: false, error: "El script de Google no devolvió datos." };
             }
