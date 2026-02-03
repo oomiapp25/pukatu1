@@ -8,7 +8,7 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, MessageCircle, RefreshCw, Phone, Globe, ShieldCheck, Zap, Ticket, ShoppingBag, PlusCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, MessageCircle, RefreshCw, Phone, Globe, ShieldCheck, Zap, Ticket, ShoppingBag, PlusCircle, CloudOff } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
@@ -166,7 +166,7 @@ function App() {
                <div key={i} className="bg-gray-100 animate-pulse h-[450px] rounded-3xl border border-gray-200"></div>
              ))}
           </div>
-        ) : error ? (
+        ) : error && !api.isOffline ? (
           <div className="bg-white rounded-3xl shadow-xl border border-red-50 p-12 text-center max-w-lg mx-auto">
              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <AlertCircle className="w-10 h-10 text-red-500" />
@@ -180,10 +180,12 @@ function App() {
         ) : lotteries.length === 0 ? (
           <div className="bg-white rounded-[40px] shadow-2xl border border-gray-50 p-24 text-center max-w-3xl mx-auto">
              <div className="w-24 h-24 bg-gray-50 rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                <Ticket className="w-12 h-12 text-gray-200" />
+                {api.isOffline ? <CloudOff className="w-12 h-12 text-amber-500" /> : <Ticket className="w-12 h-12 text-gray-200" />}
              </div>
              <h3 className="text-4xl font-black text-gray-900 mb-4 tracking-tighter">Sin Sorteos Activos</h3>
-             <p className="text-gray-500 mb-12 font-medium text-lg max-w-md mx-auto leading-relaxed">Estamos preparando nuevos premios increíbles para ti. ¡Vuelve pronto o inicia sesión si eres administrador!</p>
+             <p className="text-gray-500 mb-12 font-medium text-lg max-w-md mx-auto leading-relaxed">
+                {api.isOffline ? 'Estás en modo local. Inicia sesión como administrador para crear tu primer sorteo de prueba.' : 'Estamos preparando nuevos premios increíbles para ti. ¡Vuelve pronto o inicia sesión si eres administrador!'}
+             </p>
              <div className="flex flex-col sm:flex-row justify-center gap-4">
                  <button onClick={() => setCurrentView(ViewState.LOGIN)} className="bg-gray-900 text-white px-10 py-5 rounded-3xl font-black text-sm tracking-widest uppercase hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
                     <PlusCircle className="w-5 h-5" /> Iniciar Gestión
@@ -207,7 +209,7 @@ function App() {
               </div>
               <h3 className="text-4xl font-black text-gray-900 mb-6 tracking-tight">Transparencia en Cada Selección</h3>
               <p className="text-gray-600 text-lg leading-relaxed mb-10 font-medium">
-                  PUKATU utiliza infraestructura en la nube de Supabase para garantizar que cada selección de número sea inalterable y auditable. 
+                  PUKATU utiliza infraestructura en la nube para garantizar que cada selección de número sea inalterable y auditable. 
                   Compramos los boletos físicos oficiales en tu representación, brindándote la comodidad de la web con la seguridad del papel.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
@@ -412,6 +414,7 @@ function App() {
         cartCount={currentView === ViewState.LOTTERY_DETAIL ? selectedNumbers.length : 0} 
         user={user}
         onLogout={handleLogout}
+        isOffline={api.isOffline}
       />
       
       <main className="flex-grow">

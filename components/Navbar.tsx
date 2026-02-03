@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Ticket, ShoppingBag, Home, LogIn, LayoutDashboard, LogOut } from 'lucide-react';
+import { Ticket, ShoppingBag, Home, LogIn, LayoutDashboard, LogOut, CloudOff, Cloud } from 'lucide-react';
 import { ViewState, User } from '../types';
 
 interface NavbarProps {
@@ -8,18 +9,26 @@ interface NavbarProps {
   cartCount: number;
   user: User | null;
   onLogout: () => void;
+  isOffline?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, user, onLogout }) => {
+const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, user, onLogout, isOffline }) => {
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex items-center cursor-pointer" onClick={() => setView(ViewState.HOME)}>
-            <div className="bg-blue-600 p-2 rounded-lg mr-2">
+          <div className="flex items-center cursor-pointer group" onClick={() => setView(ViewState.HOME)}>
+            <div className="bg-blue-600 p-2 rounded-lg mr-2 group-hover:rotate-12 transition-transform">
                 <Ticket className="h-6 w-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">PUKATU</span>
+            <div className="flex flex-col">
+                <span className="text-xl font-bold text-gray-900 tracking-tight leading-none">PUKATU</span>
+                {isOffline && (
+                    <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
+                        <CloudOff className="w-2 h-2" /> Local Mode
+                    </span>
+                )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-4">
@@ -32,16 +41,6 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, user, 
                 <span className="hidden sm:inline">Loterías</span>
               </div>
             </button>
-
-             <button 
-              onClick={() => setView(ViewState.MILLIONAIRE_BAG)}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === ViewState.MILLIONAIRE_BAG ? 'text-yellow-600 bg-yellow-50' : 'text-gray-500 hover:text-yellow-600'}`}
-            >
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4" />
-                <span className="hidden sm:inline">Bolsa Millonaria</span>
-              </div>
-            </button>
             
             {user ? (
                 <>
@@ -51,7 +50,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, user, 
                     >
                         <div className="flex items-center gap-2">
                             <LayoutDashboard className="w-4 h-4" />
-                            <span className="hidden sm:inline">Panel ({user.role})</span>
+                            <span className="hidden sm:inline">Panel</span>
                         </div>
                     </button>
                     <button 
@@ -75,8 +74,8 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, setView, cartCount, user, 
             )}
 
             {cartCount > 0 && (
-                 <div className="ml-2 flex items-center bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full animate-pulse">
-                    {cartCount}
+                 <div className="ml-2 flex items-center bg-blue-100 text-blue-800 text-[10px] font-black px-2.5 py-0.5 rounded-full animate-pulse uppercase">
+                    {cartCount} SELECCIONADO
                  </div>
             )}
           </div>
