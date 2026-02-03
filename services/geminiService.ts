@@ -1,17 +1,8 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Access API Key using process.env.API_KEY as per strict guidelines
-const apiKey = process.env.API_KEY || '';
-
-// Initialize Gemini safely
-let ai: GoogleGenAI | null = null;
-if (apiKey) {
-    try {
-        ai = new GoogleGenAI({ apiKey });
-    } catch (e) {
-        console.warn("Failed to initialize GoogleGenAI", e);
-    }
-}
+// Initialize Gemini with the API key from environment variables as per strict guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getLuckyNumbers = async (
   lotteryTitle: string, 
@@ -19,12 +10,6 @@ export const getLuckyNumbers = async (
   count: number = 3
 ): Promise<number[]> => {
   
-  if (!ai) {
-    console.warn("No API Key found for Gemini. returning random numbers.");
-    const shuffled = [...availableNumbers].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
-  }
-
   try {
     const prompt = `
       Estoy jugando a una lotería llamada "${lotteryTitle}".
@@ -38,8 +23,9 @@ export const getLuckyNumbers = async (
       2. Devuelve los números como un array JSON de enteros.
     `;
 
+    // Using gemini-3-flash-preview for basic text tasks as per model guidelines
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -68,7 +54,7 @@ export const getLuckyNumbers = async (
 
   } catch (error) {
     console.error("Gemini Lucky Number Error:", error);
-    // Fallback mechanism
+    // Fallback mechanism: return random numbers if Gemini fails
     const shuffled = [...availableNumbers].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
   }

@@ -1,49 +1,39 @@
 
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Lottery, PurchaseRequest, ApiResponse, User, Purchase, SystemStats, Role, RegisterRequest } from '../types';
-import { API_BASE_URL, USE_MOCK_DATA, ZAPIER_WEBHOOK_URL } from '../constants';
-
-// --- MOCK DATA (Fallback) ---
-let MOCK_USERS: User[] = [
-  { id: '1', email: 'super@pukatu.com', name: 'Super Admin', role: 'superadmin', password: '123', status: 'active' },
-  { id: '2', email: 'admin@pukatu.com', name: 'Admin Principal', role: 'admin', password: '123', status: 'active' },
-  { id: '3', email: 'user@pukatu.com', name: 'Juan Pérez', role: 'public', password: '123', status: 'active' }
-];
-
-let MOCK_LOTTERIES: Lottery[] = [
-  {
-    id: '1',
-    title: 'Gran Sorteo de Fin de Semana',
-    description: '¡Gana un sedán de lujo nuevo o su equivalente de $50,000 en efectivo!',
-    prize: '$50,000',
-    totalNumbers: 100,
-    pricePerNumber: 10,
-    soldNumbers: [1, 5, 12, 44, 89, 92, 15, 22],
-    status: 'active',
-    drawDate: '2023-11-25',
-    image: 'https://picsum.photos/400/250?random=1',
-    createdBy: 'admin@pukatu.com',
-    contactPhone: '584121234567'
-  }
-];
-
-let MOCK_PURCHASES: Purchase[] = [];
+import { SUPABASE_URL, SUPABASE_ANON_KEY, STORAGE_BUCKET } from '../constants';
 
 export class PukatuAPI {
+  private supabase: SupabaseClient;
   private user: User | null = null;
-  private token: string | null = null;
 
   constructor() {
-    console.log("PUKATU API V6 INITIALIZED - GOOGLE SHEETS ONLY");
-    const storedUser = localStorage.getItem('pukatu_user');
-    const storedToken = localStorage.getItem('pukatu_token');
-    if (storedUser) {
-      try {
-        this.user = JSON.parse(storedUser);
-      } catch (e) {
-        console.error("Failed to parse stored user", e);
-        this.user = null;
-      }
-      this.token = storedToken;
+    this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    this.initSession();
+  }
+
+  private async initSession() {
+    const { data: { session } } = await this.supabase.auth.getSession();
+    if (session?.user) {
+      await this.fetchAndSetProfile(session.user.id, session.user.email || '');
+    }
+  }
+
+  private async fetchAndSetProfile(id: string, email: string) {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (data) {
+      this.user = {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: data.role as Role,
+        status: data.status
+      };
     }
   }
 
@@ -51,428 +41,249 @@ export class PukatuAPI {
     return this.user;
   }
 
-  logout() {
+  async logout() {
+    await this.supabase.auth.signOut();
     this.user = null;
-    this.token = null;
     localStorage.removeItem('pukatu_user');
-    localStorage.removeItem('pukatu_token');
   }
 
-  // 🔐 AUTH REGISTER
   async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
-    console.log("ATTEMPTING REGISTER via GAS:", request.email);
-    const safeEmail = request.email ? String(request.email).trim() : '';
+    const { data: authData, error: authError } = await this.supabase.auth.signUp({
+      email: request.email.includes('@') ? request.email : `${request.email}@pukatu.com`,
+      password: request.password,
+    });
 
-    if (USE_MOCK_DATA) {
-        await new Promise(r => setTimeout(r, 800));
-        const newUser: User = {
-            id: Math.random().toString(36).substr(2, 9),
-            email: safeEmail,
-            name: request.name,
-            role: request.role,
-            password: request.password,
-            status: request.status || 'active'
-        };
-        MOCK_USERS.push(newUser);
-        this.user = newUser;
-        this.token = 'mock_token_' + Date.now();
-        localStorage.setItem('pukatu_user', JSON.stringify(newUser));
-        localStorage.setItem('pukatu_token', this.token);
-        return { success: true, data: newUser };
-    }
+    if (authError) return { success: false, error: authError.message };
+    if (!authData.user) return { success: false, error: "Error al crear usuario" };
 
-    const params = new URLSearchParams({
-        action: 'register',
-        email: safeEmail,
+    const { error: profileError } = await this.supabase
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        email: request.email,
         name: request.name,
-        password: request.password, 
-        role: request.role
-    });
-    if (request.status) {
-        params.append('status', request.status);
-    }
+        role: request.role,
+        status: request.status || 'active'
+      });
 
-    const response = await this.fetchAPI(params, 'POST');
-    if (response.success && response.data) {
-         this.user = response.data;
-         this.token = response.token || 'session_token';
-         localStorage.setItem('pukatu_user', JSON.stringify(this.user));
-         localStorage.setItem('pukatu_token', this.token);
-    }
-    return response;
+    if (profileError) return { success: false, error: profileError.message };
+
+    await this.fetchAndSetProfile(authData.user.id, request.email);
+    return { success: true, data: this.user! };
   }
 
-  // 🔐 AUTH LOGIN
   async loginGAS(email: string, password?: string): Promise<ApiResponse<User>> {
-    console.log("ATTEMPTING LOGIN via GAS:", email);
-    const safeEmail = email ? String(email).trim() : '';
-
-    if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 600));
-      if (safeEmail === 'super@pukatu.com' && password !== 'Apamate.25') {
-            return { success: false, error: 'Contraseña incorrecta para Super Admin' };
-      }
-      const user = MOCK_USERS.find(u => u.email === safeEmail);
-      if (user) {
-        if (safeEmail !== 'super@pukatu.com' && user.password && user.password !== password) {
-             return { success: false, error: 'Contraseña incorrecta' };
-        }
-        this.user = user;
-        this.token = 'mock_token_' + Date.now();
-        localStorage.setItem('pukatu_user', JSON.stringify(user));
-        localStorage.setItem('pukatu_token', this.token || '');
-        return { success: true, data: user };
-      }
-      return { success: false, error: 'Usuario no encontrado' };
-    }
+    const loginEmail = email.includes('@') ? email : `${email}@pukatu.com`;
     
-    const params = new URLSearchParams({
-        action: 'login',
-        email: safeEmail,
-        password: password || ''
+    const { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: password || '',
     });
-    
-    const response = await this.fetchAPI(params, 'POST');
-    
-    if (response.success && response.data) {
-        this.user = response.data;
-        this.token = response.token;
-        localStorage.setItem('pukatu_user', JSON.stringify(this.user));
-        localStorage.setItem('pukatu_token', this.token || '');
-    }
-    
-    return response;
-  }
 
-  // 👤 USER LOTTERIES
-  async getLotteriesByUser(userEmail: string, userRole: Role): Promise<ApiResponse<Lottery[]>> {
-    if (USE_MOCK_DATA) {
-        await new Promise(r => setTimeout(r, 400));
-        let result: Lottery[] = [];
-        if (userRole === 'superadmin') {
-            result = MOCK_LOTTERIES;
-        } else if (userRole === 'admin') {
-            result = MOCK_LOTTERIES.filter(l => l.createdBy === userEmail);
-        } else {
-            const myPurchases = MOCK_PURCHASES.filter(p => p.email === userEmail);
-            const myLotteryIds = myPurchases.map(p => p.lotteryId);
-            result = MOCK_LOTTERIES.filter(l => myLotteryIds.includes(l.id));
-        }
-        return { success: true, data: result };
-    }
-    
-    const params = new URLSearchParams({
-        action: 'getLotteriesByUser',
-        targetUserEmail: userEmail
-    });
-    return this.fetchAPI(params, 'GET');
-  }
+    if (authError) return { success: false, error: authError.message };
+    if (!authData.user) return { success: false, error: "Usuario no encontrado" };
 
-  // --- PUBLIC METHODS ---
+    await this.fetchAndSetProfile(authData.user.id, email);
+    return { success: true, data: this.user! };
+  }
 
   async getActiveLotteries(): Promise<ApiResponse<Lottery[]>> {
-    if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 500));
-      return { success: true, data: MOCK_LOTTERIES.filter(l => l.status === 'active') };
-    }
-    return this.fetchAPI(new URLSearchParams({ action: 'getActiveLotteries' }), 'GET');
+    const { data, error } = await this.supabase
+      .from('lotteries')
+      .select('*')
+      .eq('status', 'active')
+      .order('draw_date', { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+    
+    // Adaptar nombres de campos de snake_case a camelCase para la app
+    const lotteries: Lottery[] = data.map(item => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      prize: item.prize,
+      totalNumbers: item.total_numbers,
+      pricePerNumber: item.price_per_number,
+      soldNumbers: item.sold_numbers || [],
+      status: item.status,
+      drawDate: item.draw_date,
+      image: item.image_url,
+      createdBy: item.created_by,
+      contactPhone: item.contact_phone,
+      winningNumber: item.winning_number
+    }));
+
+    return { success: true, data: lotteries };
   }
 
   async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
-    if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 1000));
-      const newPurchase: Purchase = {
-        ...request,
-        id: 'p' + Math.random().toString(36).substr(2, 9),
-        status: 'pending',
-        purchaseDate: new Date().toISOString().split('T')[0],
-        lotteryTitle: 'Sorteo Mock'
-      };
-      MOCK_PURCHASES.push(newPurchase);
-      return { success: true, data: { purchaseId: newPurchase.id, contactPhone: '584121234567' } };
-    }
+    const { data: lotteryData } = await this.supabase
+      .from('lotteries')
+      .select('contact_phone, sold_numbers')
+      .eq('id', request.lotteryId)
+      .single();
 
-    const params = new URLSearchParams({
-        action: 'purchaseNumber',
-        lotteryId: request.lotteryId,
-        buyerName: request.buyerName,
+    const { data, error } = await this.supabase
+      .from('purchases')
+      .insert({
+        lottery_id: request.lotteryId,
+        buyer_name: request.buyerName,
         email: request.email,
-        selectedNumbers: JSON.stringify(request.selectedNumbers),
-        totalAmount: request.totalAmount.toString()
-    });
+        selected_numbers: request.selectedNumbers,
+        total_amount: request.totalAmount,
+        status: 'pending'
+      })
+      .select()
+      .single();
 
-    // 1. Send to Google Sheets (Database)
-    const response = await this.fetchAPI(params, 'POST');
+    if (error) return { success: false, error: error.message };
 
-    // 2. Send to Zapier Webhook (Automation) - Fire and Forget
-    if (response.success && ZAPIER_WEBHOOK_URL) {
-        this.sendToZapier({
-            event: 'new_purchase',
-            timestamp: new Date().toISOString(),
-            data: {
-                ...request,
-                purchaseId: response.data?.purchaseId,
-                status: 'pending'
-            }
-        });
-    }
+    // Actualizar números vendidos en la lotería
+    const currentSold = lotteryData?.sold_numbers || [];
+    await this.supabase
+      .from('lotteries')
+      .update({ sold_numbers: [...currentSold, ...request.selectedNumbers] })
+      .eq('id', request.lotteryId);
 
-    return response;
+    return { 
+      success: true, 
+      data: { 
+        purchaseId: data.id, 
+        contactPhone: lotteryData?.contact_phone 
+      } 
+    };
   }
-  
-  // ZAPIER INTEGRATION
-  private async sendToZapier(payload: any) {
-      try {
-          if (!ZAPIER_WEBHOOK_URL) return;
-          console.log("Sending to Zapier:", payload);
-          await fetch(ZAPIER_WEBHOOK_URL, {
-              method: 'POST',
-              mode: 'no-cors', // Opaque request to avoid CORS issues with Zapier hooks
-              headers: {
-                  'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(payload)
-          });
-      } catch (e) {
-          console.warn("Zapier Webhook failed", e);
-      }
-  }
-
-  // --- SUPER ADMIN METHODS ---
 
   async getSystemStats(): Promise<ApiResponse<SystemStats>> {
-    if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 600));
-      return { success: true, data: { totalUsers: 10, totalAdmins: 2, totalLotteries: 5, activeLotteries: 3, totalRevenue: 1000, pendingPayments: 1 } };
-    }
-    return this.fetchAPI(new URLSearchParams({ action: 'getSystemStats' }), 'GET');
+    const { count: usersCount } = await this.supabase.from('profiles').select('*', { count: 'exact', head: true });
+    const { count: lotteryCount } = await this.supabase.from('lotteries').select('*', { count: 'exact', head: true });
+    const { data: revenueData } = await this.supabase.from('purchases').select('total_amount').eq('status', 'confirmed');
+
+    const totalRevenue = revenueData?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
+
+    return { 
+      success: true, 
+      data: { 
+        totalUsers: usersCount || 0, 
+        totalAdmins: 0, 
+        totalLotteries: lotteryCount || 0, 
+        activeLotteries: lotteryCount || 0, 
+        totalRevenue, 
+        pendingPayments: 0 
+      } 
+    };
   }
 
-  async getMillionaireBag(): Promise<ApiResponse<any>> {
-    if (USE_MOCK_DATA) {
-      await new Promise(r => setTimeout(r, 600));
-      return { success: true, data: { currentAmount: 100000, drawDate: 'Próximo Viernes', description: 'Bolsa acumulada' } };
-    }
-    return this.fetchAPI(new URLSearchParams({ action: 'getMillionaireBag' }), 'GET');
+  async uploadImage(file: File): Promise<string> {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `lottery-covers/${fileName}`;
+
+    const { error: uploadError } = await this.supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = this.supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   }
 
-  async updateMillionaireBag(data: any): Promise<ApiResponse<boolean>> {
-    if (USE_MOCK_DATA) return { success: true, data: true };
-    const params = new URLSearchParams({
-        action: 'updateMillionaireBag',
-        updates: JSON.stringify(data)
-    });
-    return this.fetchAPI(params, 'POST');
+  async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
+    const { data, error } = await this.supabase
+      .from('lotteries')
+      .insert({
+        title: lottery.title,
+        description: lottery.description,
+        prize: lottery.prize,
+        total_numbers: lottery.totalNumbers,
+        price_per_number: lottery.pricePerNumber,
+        status: 'active',
+        draw_date: lottery.drawDate,
+        image_url: lottery.image,
+        contact_phone: lottery.contactPhone,
+        created_by: this.user?.id
+      })
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data as any };
   }
 
   async getAllUsers(): Promise<ApiResponse<User[]>> {
-    if (USE_MOCK_DATA) return { success: true, data: MOCK_USERS };
-    return this.fetchAPI(new URLSearchParams({ action: 'getAllUsers' }), 'GET');
+    const { data, error } = await this.supabase.from('profiles').select('*');
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data as any };
   }
 
-  async deleteLottery(id: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'deleteLottery', lotteryId: id }), 'POST');
-  }
-
-  async updateLottery(id: string, updates: Partial<Lottery>): Promise<ApiResponse<boolean>> {
-    if (USE_MOCK_DATA) return { success: true, data: true };
-    const params = new URLSearchParams({
-        action: 'updateLottery',
-        lotteryId: id,
-        updates: JSON.stringify(updates)
-    });
-    return this.fetchAPI(params, 'POST');
-  }
-
-  async toggleLotteryStatus(id: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'toggleLotteryStatus', lotteryId: id }), 'POST');
-  }
-
-  async updateUser(userId: string, updates: Partial<User>): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) return { success: true, data: true };
-      const params = new URLSearchParams({
-          action: 'updateUser',
-          targetUserId: userId,
-          updates: JSON.stringify(updates)
-      });
-      return this.fetchAPI(params, 'POST');
-  }
-
-  async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
-      if (USE_MOCK_DATA) return { success: true, data: true };
-      return this.fetchAPI(new URLSearchParams({ action: 'deleteUser', targetUserId: userId }), 'POST');
-  }
-
-  async approveUser(userId: string): Promise<ApiResponse<boolean>> {
-    if (USE_MOCK_DATA) {
-      const user = MOCK_USERS.find(u => u.id === userId);
-      if (user) user.status = 'active';
-      return { success: true, data: true };
-    }
-    return this.fetchAPI(new URLSearchParams({ action: 'approveUser', targetUserId: userId }), 'POST');
-  }
-
-  async adminCreateUser(request: RegisterRequest): Promise<ApiResponse<User>> {
-    if (USE_MOCK_DATA) {
-        await new Promise(r => setTimeout(r, 800));
-        const newUser: User = {
-            id: Math.random().toString(36).substr(2, 9),
-            email: request.email,
-            name: request.name,
-            role: request.role,
-            password: request.password,
-            status: request.status || 'active'
-        };
-        MOCK_USERS.push(newUser);
-        return { success: true, data: newUser };
-    }
-
-    const params = new URLSearchParams({
-        action: 'register',
-        email: request.email,
-        name: request.name,
-        password: request.password, 
-        role: request.role
-    });
-
-    if (request.status) {
-        params.append('status', request.status);
-    }
+  async getLotteriesByUser(email: string, role: Role): Promise<ApiResponse<Lottery[]>> {
+    let query = this.supabase.from('lotteries').select('*');
+    if (role === 'admin') query = query.eq('created_by', this.user?.id);
     
-    return this.fetchAPI(params, 'POST');
-  }
-
-  // --- ADMIN METHODS ---
-
-  async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
-    if (USE_MOCK_DATA) {
-        return { success: true, data: { ...lottery, id: '123', soldNumbers: [], status: 'active', image: '' } as Lottery };
-    }
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
     
-    const params = new URLSearchParams();
-    params.append('action', 'createLottery');
-    Object.keys(lottery).forEach(key => {
-        const val = lottery[key as keyof Lottery];
-        if (val !== undefined) {
-             params.append(key, String(val));
-        }
-    });
-    
-    return this.fetchAPI(params, 'POST');
-  }
+    const lotteries: Lottery[] = data.map(item => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      prize: item.prize,
+      totalNumbers: item.total_numbers,
+      pricePerNumber: item.price_per_number,
+      soldNumbers: item.sold_numbers || [],
+      status: item.status,
+      drawDate: item.draw_date,
+      image: item.image_url,
+      createdBy: item.created_by,
+      contactPhone: item.contact_phone,
+      winningNumber: item.winning_number
+    }));
 
-  async runLotteryDraw(lotteryId: string): Promise<ApiResponse<{winningNumber: number, status: string}>> {
-    if (USE_MOCK_DATA) {
-        const lottery = MOCK_LOTTERIES.find(l => l.id === lotteryId);
-        if (!lottery || lottery.soldNumbers.length === 0) return { success: false, error: "No tickets sold" };
-        const randomIdx = Math.floor(Math.random() * lottery.soldNumbers.length);
-        const winner = lottery.soldNumbers[randomIdx];
-        lottery.winningNumber = winner;
-        return { success: true, data: { winningNumber: winner, status: 'completed' } };
-    }
-
-    const params = new URLSearchParams({
-        action: 'runLotteryDraw',
-        lotteryId: lotteryId
-    });
-    return this.fetchAPI(params, 'POST');
+    return { success: true, data: lotteries };
   }
 
   async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
-    if (USE_MOCK_DATA) return { success: true, data: [] };
-    return this.fetchAPI(new URLSearchParams({ action: 'getPendingPayments' }), 'GET');
+    const { data, error } = await this.supabase
+      .from('purchases')
+      .select(`*, lotteries(title)`)
+      .eq('status', 'pending');
+
+    if (error) return { success: false, error: error.message };
+
+    const purchases: Purchase[] = data.map(p => ({
+      id: p.id,
+      lotteryId: p.lottery_id,
+      buyerName: p.buyer_name,
+      email: p.email,
+      selectedNumbers: p.selected_numbers,
+      totalAmount: p.total_amount,
+      status: p.status,
+      purchaseDate: p.created_at,
+      lotteryTitle: p.lotteries?.title
+    }));
+
+    return { success: true, data: purchases };
   }
 
   async confirmPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-     if (USE_MOCK_DATA) return { success: true, data: true };
-     return this.fetchAPI(new URLSearchParams({ action: 'confirmPayment', purchaseId }), 'POST');
+    const { error } = await this.supabase
+      .from('purchases')
+      .update({ status: 'confirmed' })
+      .eq('id', purchaseId);
+
+    return { success: !error, error: error?.message };
   }
 
   async rejectPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-     if (USE_MOCK_DATA) return { success: true, data: true };
-     return this.fetchAPI(new URLSearchParams({ action: 'rejectPayment', purchaseId }), 'POST');
-  }
+    const { error } = await this.supabase
+      .from('purchases')
+      .update({ status: 'rejected' })
+      .eq('id', purchaseId);
 
-  // --- USER METHODS ---
-  async getMyPurchases(): Promise<ApiResponse<Purchase[]>> {
-    if (USE_MOCK_DATA) return { success: true, data: [] };
-    return this.fetchAPI(new URLSearchParams({ action: 'getMyPurchases' }), 'GET');
-  }
-
-  // --- HELPER ---
-  private async fetchAPI(params: URLSearchParams, method: 'GET' | 'POST' = 'POST') {
-    try {
-        const trimmedUrl = API_BASE_URL.trim();
-        console.log("Calling GAS URL:", trimmedUrl, params.toString());
-        
-        if (trimmedUrl.includes('/macros/library/')) {
-            return { success: false, error: 'CONFIGURATION_ERROR_LIBRARY_URL' } as any;
-        }
-
-        if (this.user) {
-            params.append('userEmail', this.user.email);
-            params.append('userRole', this.user.role);
-            if (this.token) params.append('token', this.token);
-        }
-
-        const cacheBuster = `_cb=${new Date().getTime()}`;
-
-        let response;
-        if (method === 'GET') {
-            const url = new URL(trimmedUrl);
-            params.forEach((value, key) => url.searchParams.append(key, value));
-            url.searchParams.append('_cb', new Date().getTime().toString());
-            
-            response = await fetch(url.toString(), {
-                method: 'GET',
-                mode: 'cors',
-                credentials: 'omit'
-            });
-        } else {
-            const separator = trimmedUrl.includes('?') ? '&' : '?';
-            const postUrl = `${trimmedUrl}${separator}${cacheBuster}`;
-
-            response = await fetch(postUrl, {
-                method: 'POST',
-                mode: 'cors', 
-                credentials: 'omit',
-                body: params
-            });
-        }
-        
-        const text = await response.text();
-        
-        if (!response.ok) {
-             console.error("Server Error:", text);
-             throw new Error('Server error: ' + response.status);
-        }
-
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            console.error("JSON Parse Error. Raw response:", text);
-            if (text.includes("script completed but did not return anything")) {
-                return { success: false, error: "El script de Google no devolvió datos." };
-            }
-            if (text.includes("myFunction") || text.includes("function was deleted")) {
-                 return { success: false, error: "Error de configuración GAS: Despliegue obsoleto. Crea una 'Nueva versión'." };
-            }
-            if (text.includes("Google Drive") || text.includes("Google Docs")) {
-                return { success: false, error: "ACCESS_DENIED_HTML" };
-            }
-            return { success: false, error: 'Respuesta inválida (HTML recibido). Posible error de servidor.' };
-        }
-
-    } catch (error: any) {
-        console.error("API Call Error Details:", error);
-        
-        let msg = error.message || 'Error de conexión.';
-        if (msg.includes('Failed to fetch')) {
-            return { success: false, error: 'CONNECTION_ERROR_CORS' } as any;
-        }
-        return { success: false, error: msg };
-    }
+    return { success: !error, error: error?.message };
   }
 }
