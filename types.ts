@@ -44,6 +44,7 @@ export interface Lottery {
   createdBy?: string;
   contactPhone?: string;
   winningNumber?: number;
+  drawNarrative?: string;
 }
 
 export interface PurchaseRequest {

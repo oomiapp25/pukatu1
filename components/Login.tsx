@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { PukatuAPI } from '../services/api';
 import { User, Role } from '../types';
-import { LogIn, Lock, UserPlus, Phone, Sparkles } from 'lucide-react';
+import { LogIn, Lock, UserPlus, Phone, Sparkles, ShieldCheck } from 'lucide-react';
 
 interface LoginProps {
   api: PukatuAPI;
@@ -25,14 +25,26 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fillJanaCreds = () => {
+  const fillJanaCreds = (role: Role = 'admin') => {
     if (isRegistering) {
-        setRegName('Jana');
-        setRegEmail('jana1711');
+        setRegName('Jana Admin');
+        setRegEmail('jana_admin');
         setRegPassword('Apamate.25');
-        setRegRole('admin');
+        setRegRole(role);
     } else {
-        setEmail('jana1711');
+        setEmail('jana_admin');
+        setPassword('Apamate.25');
+    }
+  };
+
+  const fillSuperAdmin = () => {
+    if (isRegistering) {
+        setRegName('Jana SuperAdmin');
+        setRegEmail('jana_root');
+        setRegPassword('Apamate.25');
+        setRegRole('superadmin');
+    } else {
+        setEmail('jana_root');
         setPassword('Apamate.25');
     }
   };
@@ -87,24 +99,31 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 animate-fadeIn">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-100 rotate-3">
+          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-100 rotate-3 transition-transform hover:rotate-0">
              {isRegistering ? <UserPlus className="h-8 w-8 text-white" /> : <LogIn className="h-8 w-8 text-white" />}
           </div>
           <h2 className="mt-8 text-3xl font-black text-gray-900 tracking-tight">
-            {isRegistering ? 'Únete a PUKATU' : 'Bienvenido de Nuevo'}
+            {isRegistering ? 'Únete a PUKATU' : 'Acceso Administrativo'}
           </h2>
           <p className="mt-2 text-sm text-gray-500 font-medium">
-            {isRegistering ? 'Crea tu cuenta de administrador o jugador' : 'Gestiona tus sorteos y premios'}
+            {isRegistering ? 'Crea tu cuenta de gestión' : 'Gestiona tus sorteos y premios oficiales'}
           </p>
         </div>
 
-        {/* Botón de Ayuda para Jana */}
-        <button 
-            onClick={fillJanaCreds}
-            className="w-full py-2 px-4 bg-yellow-50 text-yellow-700 text-xs font-bold rounded-xl border border-yellow-200 flex items-center justify-center gap-2 hover:bg-yellow-100 transition-colors"
-        >
-            <Sparkles className="w-3 h-3" /> AUTO-COMPLETAR DATOS (JANA)
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+            <button 
+                onClick={() => fillJanaCreds('admin')}
+                className="py-2.5 px-3 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-xl border border-blue-200 flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
+            >
+                <Sparkles className="w-3 h-3" /> ADMIN JANA
+            </button>
+            <button 
+                onClick={fillSuperAdmin}
+                className="py-2.5 px-3 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-xl border border-purple-200 flex items-center justify-center gap-2 hover:bg-purple-100 transition-colors"
+            >
+                <ShieldCheck className="w-3 h-3" /> SUPER ADMIN
+            </button>
+        </div>
         
         {isRegistering ? (
             <form className="space-y-4" onSubmit={handleRegister}>
@@ -112,19 +131,19 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nombre Completo</label>
                     <input
                         type="text" required
-                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-800"
                         placeholder="Tu Nombre"
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Usuario / Teléfono</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Usuario / ID</label>
                     <div className="relative">
                         <input
                             type="text" required
-                            className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all"
-                            placeholder="jana1711"
+                            className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-800"
+                            placeholder="jana_admin"
                             value={regEmail}
                             onChange={(e) => setRegEmail(e.target.value)}
                         />
@@ -132,46 +151,47 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                     </div>
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Contraseña</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Clave de Acceso</label>
                     <input
                         type="password" required
-                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-800"
                         placeholder="••••••••"
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
                     />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo de Cuenta</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Rango del Perfil</label>
                     <select 
                         value={regRole}
                         onChange={(e) => setRegRole(e.target.value as Role)}
-                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-700"
+                        className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-black text-gray-700"
                     >
-                        <option value="admin">Administrador de Lotería</option>
-                        <option value="public">Jugador Público</option>
+                        <option value="admin">Administrador Regular</option>
+                        <option value="superadmin">Super Administrador (Root)</option>
+                        <option value="public">Usuario Público</option>
                     </select>
                 </div>
 
-                {error && <div className="p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold">{error}</div>}
+                {error && <div className="p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold animate-shake">{error}</div>}
 
                 <button
                     type="submit" disabled={loading}
                     className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
                 >
-                    {loading ? 'CREANDO...' : 'REGISTRARME'}
+                    {loading ? 'CREANDO PERFIL...' : 'REGISTRARME'}
                 </button>
             </form>
         ) : (
             <form className="space-y-6" onSubmit={handleLogin}>
                 <div className="space-y-4">
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Usuario / Teléfono</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Usuario / ID</label>
                         <div className="relative">
                             <input
                                 type="text" required
-                                className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all"
-                                placeholder="jana1711"
+                                className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-800"
+                                placeholder="jana_admin"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
@@ -179,11 +199,11 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Contraseña</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Clave</label>
                         <div className="relative">
                             <input
                                 type="password" required
-                                className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all"
+                                className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all font-bold text-gray-800"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -193,13 +213,13 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
                     </div>
                 </div>
 
-                {error && <div className="p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold">{error}</div>}
+                {error && <div className="p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold animate-shake">{error}</div>}
 
                 <button
                     type="submit" disabled={loading}
                     className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
                 >
-                    {loading ? 'VERIFICANDO...' : 'INICIAR SESIÓN'}
+                    {loading ? 'AUTENTICANDO...' : 'INICIAR SESIÓN'}
                 </button>
             </form>
         )}
@@ -207,9 +227,9 @@ export const Login: React.FC<LoginProps> = ({ api, onLoginSuccess }) => {
         <div className="text-center">
             <button 
                 onClick={() => { setIsRegistering(!isRegistering); setError(''); }}
-                className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest"
             >
-                {isRegistering ? '¿Ya tienes cuenta? Inicia Sesión' : '¿No tienes cuenta? Regístrate Gratis'}
+                {isRegistering ? '¿Ya tienes cuenta? Ingresa' : '¿Nuevo administrador? Regístrate'}
             </button>
         </div>
       </div>

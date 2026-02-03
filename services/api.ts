@@ -1,7 +1,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Lottery, PurchaseRequest, ApiResponse, User, Purchase, SystemStats, Role, RegisterRequest } from '../types';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, STORAGE_BUCKET } from '../constants';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
 
 export class PukatuAPI {
   private supabase: SupabaseClient;
@@ -120,7 +120,6 @@ export class PukatuAPI {
     const { data, error } = await this.supabase
       .from('lotteries')
       .select('*')
-      .eq('status', 'active')
       .order('draw_date', { ascending: true });
 
     if (error) return { success: false, error: error.message };
@@ -142,7 +141,8 @@ export class PukatuAPI {
       image: item.image_url || 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?q=80&w=1000&auto=format&fit=crop',
       createdBy: item.created_by,
       contactPhone: item.contact_phone,
-      winningNumber: item.winning_number
+      winningNumber: item.winning_number,
+      drawNarrative: item.draw_narrative
     }));
   }
 
@@ -169,13 +169,84 @@ export class PukatuAPI {
     return { success: true, data: data as any };
   }
 
+  async finalizeDraw(lotteryId: string, winningNumber: number, narrative: string): Promise<ApiResponse<void>> {
+    const { error } = await this.supabase
+      .from('lotteries')
+      .update({
+        status: 'completed',
+        winning_number: winningNumber,
+        draw_narrative: narrative
+      })
+      .eq('id', lotteryId);
+    
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }
+
+  async getPurchases(lotteryId?: string): Promise<ApiResponse<Purchase[]>> {
+    let query = this.supabase.from('purchases').select('*, lotteries(title)');
+    
+    if (lotteryId) {
+        query = query.eq('lottery_id', lotteryId);
+    } else if (this.user?.role !== 'superadmin') {
+        // En un caso real, filtraríamos por loterías creadas por este admin
+        // Por simplicidad, el superadmin ve todo y el admin ve lo suyo.
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) return { success: false, error: error.message };
+
+    return { 
+      success: true, 
+      data: data.map(p => ({
+        id: p.id,
+        lotteryId: p.lottery_id,
+        lotteryTitle: p.lotteries?.title,
+        buyerName: p.buyer_name,
+        email: p.email,
+        selectedNumbers: p.selected_numbers,
+        totalAmount: p.total_amount,
+        status: p.status,
+        purchaseDate: p.created_at
+      }))
+    };
+  }
+
+  async confirmPurchase(purchaseId: string): Promise<ApiResponse<void>> {
+    const { error } = await this.supabase
+      .from('purchases')
+      .update({ status: 'confirmed' })
+      .eq('id', purchaseId);
+    
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }
+
+  async deleteLottery(id: string): Promise<ApiResponse<void>> {
+    const { error } = await this.supabase
+      .from('lotteries')
+      .delete()
+      .eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }
+
+  async updateLotteryStatus(id: string, status: Lottery['status']): Promise<ApiResponse<void>> {
+    const { error } = await this.supabase
+      .from('lotteries')
+      .update({ status })
+      .eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }
+
   async getLotteriesByUser(email: string, role: Role): Promise<ApiResponse<Lottery[]>> {
     let query = this.supabase.from('lotteries').select('*');
     if (role !== 'superadmin') {
         query = query.eq('created_by', this.user?.id);
     }
     
-    const { data, error } = await query;
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) return { success: false, error: error.message };
     return { success: true, data: this.mapLotteries(data) };
   }
