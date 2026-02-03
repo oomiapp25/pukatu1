@@ -1,12 +1,14 @@
 
-export enum ViewState {
-  HOME = 'HOME',
-  LOTTERY_DETAIL = 'LOTTERY_DETAIL',
-  MILLIONAIRE_BAG = 'MILLIONAIRE_BAG',
-  CONFIRMATION = 'CONFIRMATION',
-  LOGIN = 'LOGIN',
-  DASHBOARD = 'DASHBOARD'
-}
+export const ViewState = {
+  HOME: 'HOME',
+  LOTTERY_DETAIL: 'LOTTERY_DETAIL',
+  MILLIONAIRE_BAG: 'MILLIONAIRE_BAG',
+  CONFIRMATION: 'CONFIRMATION',
+  LOGIN: 'LOGIN',
+  DASHBOARD: 'DASHBOARD'
+} as const;
+
+export type ViewState = typeof ViewState[keyof typeof ViewState];
 
 export type Role = 'superadmin' | 'admin' | 'public';
 
@@ -16,8 +18,8 @@ export interface User {
   name: string;
   role: Role;
   token?: string;
-  password?: string; // Added for mock auth logic
-  status?: 'active' | 'suspended' | 'pending'; // Added for user management
+  password?: string;
+  status?: 'active' | 'suspended' | 'pending';
 }
 
 export interface RegisterRequest {
@@ -25,7 +27,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   role: Role; 
-  status?: 'active' | 'pending'; // Added status field
+  status?: 'active' | 'pending';
 }
 
 export interface Lottery {
@@ -39,9 +41,9 @@ export interface Lottery {
   status: 'active' | 'completed' | 'upcoming' | 'paused';
   drawDate: string;
   image: string;
-  createdBy?: string; // email of admin
-  contactPhone?: string; // WhatsApp number for purchase confirmation
-  winningNumber?: number; // The result of the draw
+  createdBy?: string;
+  contactPhone?: string;
+  winningNumber?: number;
 }
 
 export interface PurchaseRequest {

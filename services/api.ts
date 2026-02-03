@@ -20,28 +20,38 @@ export class PukatuAPI {
   }
 
   private async fetchAndSetProfile(id: string, email: string) {
-    const { data, error } = await this.supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', id)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (data) {
-      this.user = {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        role: data.role as Role,
-        status: data.status
-      };
-      localStorage.setItem('pukatu_user', JSON.stringify(this.user));
+      if (data) {
+        this.user = {
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          role: data.role as Role,
+          status: data.status
+        };
+        localStorage.setItem('pukatu_user', JSON.stringify(this.user));
+      }
+    } catch (e) {
+      console.error("Error al obtener perfil:", e);
     }
   }
 
   getCurrentUser(): User | null {
     if (!this.user) {
         const cached = localStorage.getItem('pukatu_user');
-        if (cached) this.user = JSON.parse(cached);
+        if (cached) {
+          try {
+            this.user = JSON.parse(cached);
+          } catch(e) {
+            localStorage.removeItem('pukatu_user');
+          }
+        }
     }
     return this.user;
   }
@@ -60,21 +70,14 @@ export class PukatuAPI {
   async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
     const loginEmail = this.formatEmail(request.email);
     
-    // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await this.supabase.auth.signUp({
       email: loginEmail,
       password: request.password,
-      options: {
-        data: {
-          full_name: request.name,
-        }
-      }
     });
 
     if (authError) return { success: false, error: authError.message };
     if (!authData.user) return { success: false, error: "Error al crear credenciales" };
 
-    // 2. Crear perfil en tabla pública (el trigger SQL debería hacerlo, pero lo aseguramos)
     const { error: profileError } = await this.supabase
       .from('profiles')
       .upsert({
@@ -102,7 +105,7 @@ export class PukatuAPI {
     if (authError) {
         let msg = authError.message;
         if (msg === 'Invalid login credentials') {
-            msg = 'Credenciales inválidas. Si no tienes cuenta, por favor regístrate primero.';
+            msg = 'Usuario o clave incorrectos. Si es tu primera vez, regístrate.';
         }
         return { success: false, error: msg };
     }
@@ -143,40 +146,6 @@ export class PukatuAPI {
     }));
   }
 
-  async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
-    const { data: lotteryData } = await this.supabase
-      .from('lotteries')
-      .select('contact_phone, sold_numbers')
-      .eq('id', request.lotteryId)
-      .single();
-
-    const { data, error } = await this.supabase
-      .from('purchases')
-      .insert({
-        lottery_id: request.lotteryId,
-        buyer_name: request.buyerName,
-        email: request.email,
-        selected_numbers: request.selectedNumbers,
-        total_amount: request.totalAmount,
-        status: 'pending'
-      })
-      .select()
-      .single();
-
-    if (error) return { success: false, error: error.message };
-
-    const currentSold = lotteryData?.sold_numbers || [];
-    await this.supabase
-      .from('lotteries')
-      .update({ sold_numbers: [...currentSold, ...request.selectedNumbers] })
-      .eq('id', request.lotteryId);
-
-    return { 
-      success: true, 
-      data: { purchaseId: data.id, contactPhone: lotteryData?.contact_phone } 
-    };
-  }
-
   async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
     const { data, error } = await this.supabase
       .from('lotteries')
@@ -209,6 +178,40 @@ export class PukatuAPI {
     const { data, error } = await query;
     if (error) return { success: false, error: error.message };
     return { success: true, data: this.mapLotteries(data) };
+  }
+
+  async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
+    const { data: lotteryData } = await this.supabase
+      .from('lotteries')
+      .select('contact_phone, sold_numbers')
+      .eq('id', request.lotteryId)
+      .single();
+
+    const { data, error } = await this.supabase
+      .from('purchases')
+      .insert({
+        lottery_id: request.lotteryId,
+        buyer_name: request.buyerName,
+        email: request.email,
+        selected_numbers: request.selectedNumbers,
+        total_amount: request.totalAmount,
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    const currentSold = lotteryData?.sold_numbers || [];
+    await this.supabase
+      .from('lotteries')
+      .update({ sold_numbers: [...currentSold, ...request.selectedNumbers] })
+      .eq('id', request.lotteryId);
+
+    return { 
+      success: true, 
+      data: { purchaseId: data.id, contactPhone: lotteryData?.contact_phone } 
+    };
   }
 
   async getSystemStats(): Promise<ApiResponse<SystemStats>> {
