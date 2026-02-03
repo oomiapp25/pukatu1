@@ -1,29 +1,34 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize Gemini with the API key from environment variables as per strict guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const getLuckyNumbers = async (
   lotteryTitle: string, 
   availableNumbers: number[], 
-  count: number = 3
+  count: number = 5
 ): Promise<number[]> => {
   
   try {
+    // Initialize inside function to ensure environment variables are loaded
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      console.warn("API_KEY not found, using fallback random numbers");
+      return availableNumbers.sort(() => 0.5 - Math.random()).slice(0, count);
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
     const prompt = `
       Estoy jugando a una lotería llamada "${lotteryTitle}".
       Necesito que generes ${count} números de la suerte únicos para mí.
       
       Aquí está la lista de números disponibles que puedo elegir:
-      ${JSON.stringify(availableNumbers.slice(0, 500))} (lista truncada por brevedad)
+      ${JSON.stringify(availableNumbers.slice(0, 200))}
       
       Reglas:
       1. Solo selecciona números de la lista proporcionada.
       2. Devuelve los números como un array JSON de enteros.
     `;
 
-    // Using gemini-3-flash-preview for basic text tasks as per model guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -39,13 +44,9 @@ export const getLuckyNumbers = async (
     });
 
     const text = response.text;
-    
-    if (!text) {
-        throw new Error("No text response from Gemini");
-    }
+    if (!text) throw new Error("No response text");
 
     const numbers = JSON.parse(text);
-
     if (Array.isArray(numbers)) {
       return numbers.map((n: any) => Number(n));
     }
@@ -54,7 +55,6 @@ export const getLuckyNumbers = async (
 
   } catch (error) {
     console.error("Gemini Lucky Number Error:", error);
-    // Fallback mechanism: return random numbers if Gemini fails
     const shuffled = [...availableNumbers].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
   }
