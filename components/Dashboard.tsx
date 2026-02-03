@@ -89,7 +89,6 @@ const SuperAdminPanel = ({ api, currentUser }: { api: PukatuAPI, currentUser: Us
 const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
     const [tab, setTab] = useState<'create' | 'payments' | 'my_lotteries'>('my_lotteries');
     const [myLotteries, setMyLotteries] = useState<Lottery[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
     const [loading, setLoading] = useState(false);
 
     // Create Form State
@@ -112,20 +111,20 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
     const handleCreateTestGame = async () => {
         setLoading(true);
         const res = await api.createLottery({
-            title: "Sorteo de Prueba Jana",
-            prize: "Jackpot de $5,000",
-            description: "Este es un sorteo de prueba creado automáticamente.",
-            contactPhone: "584120000000",
+            title: "Sorteo Especial de Prueba",
+            prize: "$5,000 USD",
+            description: "Este sorteo ha sido creado automáticamente para probar la plataforma.",
+            contactPhone: "584121112233",
             image: "https://images.unsplash.com/photo-1596750014482-a65c49a594ae?q=80&w=1000&auto=format&fit=crop",
-            drawDate: new Date(Date.now() + 604800000).toISOString(), // En una semana
-            pricePerNumber: 5,
-            totalNumbers: 50
+            drawDate: new Date(Date.now() + 86400000 * 7).toISOString(),
+            pricePerNumber: 10,
+            totalNumbers: 100
         });
         if (res.success) {
-            alert('¡Juego de prueba creado!');
+            alert('¡Sorteo de prueba generado!');
             setTab('my_lotteries');
         } else {
-            alert('Error: ' + res.error);
+            alert('Error creando sorteo: ' + res.error);
         }
         setLoading(false);
     };
@@ -168,47 +167,47 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-                            <Ticket className="text-blue-600" /> Nuevo Sorteo
+                            <Ticket className="text-blue-600" /> Publicar Sorteo
                         </h3>
                         <form className="space-y-5" onSubmit={handleCreate}>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Título del Sorteo</label>
-                                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ej. Gran Rifa Navideña" required />
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Título</label>
+                                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold" placeholder="Ej. Rifazo del Mes" required />
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Premio Principal</label>
-                                    <input value={newPrize} onChange={e => setNewPrize(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="$1,000 USD" required />
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Premio</label>
+                                    <input value={newPrize} onChange={e => setNewPrize(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold" placeholder="$1,000 USD" required />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fecha Sorteo</label>
-                                    <input value={newDate} onChange={e => setNewDate(e.target.value)} type="datetime-local" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all" required />
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fecha</label>
+                                    <input value={newDate} onChange={e => setNewDate(e.target.value)} type="datetime-local" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold" required />
                                 </div>
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">WhatsApp de Confirmación</label>
-                                <input value={newPhone} onChange={e => setNewPhone(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="584121234567" required />
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">WhatsApp Soporte</label>
+                                <input value={newPhone} onChange={e => setNewPhone(e.target.value)} type="text" className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all font-bold" placeholder="58412..." required />
                             </div>
 
-                            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-2">
                                 {loading ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>}
-                                PUBLICAR SORTEO
+                                PUBLICAR AHORA
                             </button>
                         </form>
                     </div>
 
-                    <div className="bg-blue-600 p-8 rounded-3xl text-white shadow-2xl flex flex-col justify-center items-center text-center">
-                        <Sparkles className="w-16 h-16 mb-6 text-blue-200" />
-                        <h3 className="text-2xl font-black mb-4">¿Quieres probar rápido?</h3>
-                        <p className="text-blue-100 mb-8 max-w-xs">Creamos un sorteo de prueba con datos ficticios para que veas cómo luce la plataforma.</p>
+                    <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-10 rounded-3xl text-white shadow-2xl flex flex-col justify-center items-center text-center">
+                        <Dices className="w-20 h-20 mb-6 text-blue-200 animate-pulse" />
+                        <h3 className="text-2xl font-black mb-4 tracking-tight">Acceso Rápido</h3>
+                        <p className="text-blue-100 mb-8 max-w-xs text-sm leading-relaxed">¿Eres Jana? Puedes crear un sorteo de prueba con un solo clic para ver cómo funciona el sistema antes de publicar uno real.</p>
                         <button 
                             onClick={handleCreateTestGame} 
                             disabled={loading}
-                            className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50"
+                            className="bg-white text-blue-600 px-10 py-5 rounded-2xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50"
                         >
-                            <Dices className="w-5 h-5" /> GENERAR JUEGO DE PRUEBA
+                            <Sparkles className="w-6 h-6" /> CREAR JUEGO DE PRUEBA
                         </button>
                     </div>
                 </div>
@@ -219,27 +218,27 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
                     {loading ? (
                         <div className="flex justify-center p-12"><Loader2 className="animate-spin text-blue-600 w-10 h-10" /></div>
                     ) : myLotteries.length === 0 ? (
-                        <div className="bg-white p-12 rounded-3xl text-center border">
-                            <Ticket className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                            <h4 className="text-lg font-bold text-gray-900">No tienes sorteos aún</h4>
-                            <p className="text-gray-500 mb-6">Comienza creando tu primer sorteo o genera uno de prueba.</p>
-                            <button onClick={() => setTab('create')} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold">Crear mi primero</button>
+                        <div className="bg-white p-16 rounded-3xl text-center border border-gray-100">
+                            <Ticket className="w-16 h-16 text-gray-200 mx-auto mb-6" />
+                            <h4 className="text-xl font-black text-gray-900 mb-2">Aún no tienes sorteos</h4>
+                            <p className="text-gray-500 mb-8 max-w-xs mx-auto">Comienza a ganar dinero publicando tu primera lotería ahora mismo.</p>
+                            <button onClick={() => setTab('create')} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700">Crear Sorteo</button>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {myLotteries.map(l => (
-                                <div key={l.id} className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm group">
-                                    <div className="h-32 relative">
-                                        <img src={l.image} className="w-full h-full object-cover" />
+                                <div key={l.id} className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
+                                    <div className="h-40 relative">
+                                        <img src={l.image} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-700" />
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button className="bg-white text-gray-900 p-2 rounded-full"><Edit className="w-4 h-4"/></button>
+                                            <button className="bg-white text-gray-900 p-3 rounded-full font-bold flex items-center gap-2"><Edit className="w-4 h-4"/> Editar</button>
                                         </div>
                                     </div>
-                                    <div className="p-5">
-                                        <h4 className="font-bold text-gray-900 truncate">{l.title}</h4>
-                                        <div className="flex justify-between items-center mt-2">
-                                            <span className="text-xs font-black text-blue-600 uppercase">{l.prize}</span>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${l.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}>
+                                    <div className="p-6">
+                                        <h4 className="font-black text-gray-900 text-lg truncate">{l.title}</h4>
+                                        <div className="flex justify-between items-center mt-4">
+                                            <span className="text-sm font-black text-blue-600">{l.prize}</span>
+                                            <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${l.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}>
                                                 {l.status}
                                             </span>
                                         </div>
@@ -255,22 +254,24 @@ const AdminPanel = ({ api, user }: { api: PukatuAPI, user: User }) => {
 };
 
 const UserPanel = ({ api, user }: { api: PukatuAPI, user: User }) => (
-    <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center">
-        <Dices className="w-12 h-12 text-blue-100 mx-auto mb-4" />
-        <h3 className="font-black text-xl text-gray-900 mb-2">Tus Participaciones</h3>
-        <p className="text-gray-500 max-w-sm mx-auto">Aquí verás los números que has comprado en los diferentes sorteos de PUKATU.</p>
-        <div className="mt-8 pt-8 border-t border-gray-50">
-             <p className="text-sm font-bold text-blue-600">Módulo Historial: Próximamente</p>
+    <div className="bg-white p-16 rounded-3xl border border-gray-100 text-center shadow-sm">
+        <div className="mx-auto w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mb-8">
+            <Ticket className="w-10 h-10 text-blue-600" />
+        </div>
+        <h3 className="font-black text-2xl text-gray-900 mb-4 tracking-tight">Tus Participaciones</h3>
+        <p className="text-gray-500 max-w-sm mx-auto mb-10 font-medium">Aquí podrás consultar todos los números que has comprado y ver si has resultado ganador.</p>
+        <div className="inline-block px-6 py-3 bg-gray-900 text-white rounded-2xl font-black text-sm">
+             MÓDULO EN DESARROLLO
         </div>
     </div>
 );
 
 const StatCard = ({ icon, label, value }: { icon: any, label: string, value: string | number }) => (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-5 hover:shadow-lg transition-all">
-        <div className="p-4 bg-gray-50 rounded-2xl">{icon}</div>
+    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-6 hover:shadow-xl transition-all cursor-default">
+        <div className="p-5 bg-gray-50 rounded-2xl group-hover:bg-blue-50 transition-colors">{icon}</div>
         <div>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{label}</p>
-            <p className="text-2xl font-black text-gray-900">{value}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+            <p className="text-3xl font-black text-gray-900 tracking-tighter">{value}</p>
         </div>
     </div>
 );

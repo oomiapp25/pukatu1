@@ -53,23 +53,31 @@ export class PukatuAPI {
   }
 
   private formatEmail(input: string): string {
-    return input.includes('@') ? input : `${input.toLowerCase().trim()}@pukatu.com`;
+    const clean = input.toLowerCase().trim();
+    return clean.includes('@') ? clean : `${clean}@pukatu.com`;
   }
 
   async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
     const loginEmail = this.formatEmail(request.email);
     
+    // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await this.supabase.auth.signUp({
       email: loginEmail,
       password: request.password,
+      options: {
+        data: {
+          full_name: request.name,
+        }
+      }
     });
 
     if (authError) return { success: false, error: authError.message };
     if (!authData.user) return { success: false, error: "Error al crear credenciales" };
 
+    // 2. Crear perfil en tabla pública (el trigger SQL debería hacerlo, pero lo aseguramos)
     const { error: profileError } = await this.supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: authData.user.id,
         email: request.email,
         name: request.name,
@@ -92,10 +100,10 @@ export class PukatuAPI {
     });
 
     if (authError) {
-        // Mejorar mensaje para el usuario
-        const msg = authError.message === 'Invalid login credentials' 
-            ? 'Usuario o contraseña incorrectos. ¿Ya te registraste?' 
-            : authError.message;
+        let msg = authError.message;
+        if (msg === 'Invalid login credentials') {
+            msg = 'Credenciales inválidas. Si no tienes cuenta, por favor regístrate primero.';
+        }
         return { success: false, error: msg };
     }
     
@@ -203,24 +211,6 @@ export class PukatuAPI {
     return { success: true, data: this.mapLotteries(data) };
   }
 
-  async uploadImage(file: File): Promise<string> {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-    const filePath = `covers/${fileName}`;
-
-    const { error: uploadError } = await this.supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = this.supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  }
-
   async getSystemStats(): Promise<ApiResponse<SystemStats>> {
     const { count: uCount } = await this.supabase.from('profiles').select('*', { count: 'exact', head: true });
     const { count: lCount } = await this.supabase.from('lotteries').select('*', { count: 'exact', head: true });
@@ -237,36 +227,6 @@ export class PukatuAPI {
         totalRevenue: rev?.reduce((s, p) => s + Number(p.total_amount), 0) || 0, 
         pendingPayments: pCount || 0 
       } 
-    };
-  }
-
-  async getAllUsers(): Promise<ApiResponse<User[]>> {
-    const { data, error } = await this.supabase.from('profiles').select('*');
-    if (error) return { success: false, error: error.message };
-    return { success: true, data: data as any };
-  }
-
-  async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
-    const { data, error } = await this.supabase
-      .from('purchases')
-      .select(`*, lotteries(title)`)
-      .eq('status', 'pending');
-
-    if (error) return { success: false, error: error.message };
-
-    return { 
-      success: true, 
-      data: data.map(p => ({
-        id: p.id,
-        lotteryId: p.lottery_id,
-        buyerName: p.buyer_name,
-        email: p.email,
-        selectedNumbers: p.selected_numbers,
-        totalAmount: p.total_amount,
-        status: p.status,
-        purchaseDate: p.created_at,
-        lotteryTitle: p.lotteries?.title
-      }))
     };
   }
 }
