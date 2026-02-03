@@ -8,11 +8,11 @@ import LotteryCard from './components/LotteryCard';
 import NumberGrid from './components/NumberGrid';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, AlertTriangle, Ticket, ExternalLink, Link2Off, Clock, Phone } from 'lucide-react';
+// Added missing Ticket and ShoppingBag icons to the import list below
+import { ArrowLeft, CheckCircle, AlertCircle, Wand2, Loader2, Lock, MessageCircle, RefreshCw, HelpCircle, Phone, Globe, ShieldCheck, Zap, Ticket, ShoppingBag } from 'lucide-react';
 import { CURRENCY_SYMBOL } from './constants';
 
 function App() {
-  // Initialize API only once
   const api = useMemo(() => new PukatuAPI(), []);
 
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
@@ -25,28 +25,22 @@ function App() {
   const [error, setError] = useState<string>('');
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [purchaseResult, setPurchaseResult] = useState<{success: boolean, message: string} | null>(null);
-  
-  // WhatsApp Logic State
   const [lastWhatsAppUrl, setLastWhatsAppUrl] = useState<string | null>(null);
-
-  // User Form State (Autofilled if logged in)
   const [userName, setUserName] = useState('');
-  // Changed from userEmail to userPhone for clarity
   const [userPhone, setUserPhone] = useState('');
-  
-  // AI State
   const [isAiThinking, setIsAiThinking] = useState(false);
 
-  // Check auth on load
   useEffect(() => {
-    const currentUser = api.getCurrentUser();
-    if (currentUser) {
-        setUser(currentUser);
-        setUserName(currentUser.name);
-        // The API returns the phone number in the 'email' field for compatibility
-        setUserPhone(currentUser.email);
-    }
-    loadLotteries();
+    const checkSession = async () => {
+      const currentUser = api.getCurrentUser();
+      if (currentUser) {
+          setUser(currentUser);
+          setUserName(currentUser.name);
+          setUserPhone(currentUser.email);
+      }
+      loadLotteries();
+    };
+    checkSession();
   }, [api]);
 
   const loadLotteries = async () => {
@@ -56,7 +50,7 @@ function App() {
     if (result.success && result.data) {
       setLotteries(result.data);
     } else {
-      setError(result.error || 'No se pudieron cargar las loterías.');
+      setError(result.error || 'Error al conectar con el servidor de Supabase.');
     }
     setLoading(false);
   };
@@ -81,17 +75,12 @@ function App() {
     setSelectedNumbers([]); 
     setPurchaseResult(null);
     setLastWhatsAppUrl(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setCurrentView(ViewState.LOTTERY_DETAIL);
   };
 
   const handleToggleNumber = (num: number) => {
-    setSelectedNumbers(prev => {
-      if (prev.includes(num)) {
-        return prev.filter(n => n !== num);
-      } else {
-        return [...prev, num];
-      }
-    });
+    setSelectedNumbers(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
   };
 
   const handleAiPick = async () => {
@@ -100,8 +89,7 @@ function App() {
     const allNumbers = Array.from({ length: selectedLottery.totalNumbers }, (_, i) => i + 1);
     const available = allNumbers.filter(n => !selectedLottery.soldNumbers.includes(n));
     const luckyNumbers = await getLuckyNumbers(selectedLottery.title, available, 5);
-    const newSelection = [...new Set([...selectedNumbers, ...luckyNumbers])].filter(n => !selectedLottery.soldNumbers.includes(n));
-    setSelectedNumbers(newSelection);
+    setSelectedNumbers(prev => [...new Set([...prev, ...luckyNumbers])].filter(n => !selectedLottery.soldNumbers.includes(n)));
     setIsAiThinking(false);
   };
 
@@ -109,16 +97,10 @@ function App() {
     e.preventDefault();
     if (!selectedLottery || selectedNumbers.length === 0) return;
 
-    if (!user && !confirm("No has iniciado sesión. Puedes comprar como invitado, pero no verás el historial en tu panel. ¿Continuar?")) {
-        return;
-    }
-
     setPurchasing(true);
-    
     const purchaseRequest: PurchaseRequest = {
       lotteryId: selectedLottery.id,
       buyerName: userName,
-      // We send the phone number in the 'email' field to the backend
       email: userPhone,
       selectedNumbers: selectedNumbers,
       totalAmount: selectedNumbers.length * selectedLottery.pricePerNumber
@@ -129,133 +111,92 @@ function App() {
     
     if (result.success && result.data) {
       const { purchaseId, contactPhone } = result.data;
-      let waUrl = '';
-
-      // Prepare WhatsApp Redirect
       if (contactPhone) {
-          const message = `👋 Hola, deseo confirmar mi compra en PUKATU.
-🎫 *Sorteo:* ${selectedLottery.title}
-🔢 *Números:* ${selectedNumbers.join(', ')}
-💰 *Total:* ${CURRENCY_SYMBOL}${purchaseRequest.totalAmount}
-📱 *Mi Teléfono:* ${userPhone}
-🆔 *ID Compra:* ${purchaseId}
-          
-Espero confirmación. Gracias.`;
-          
-          waUrl = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
+          const message = `👋 Hola PUKATU, confirmo mi compra:\n🎫 *Sorteo:* ${selectedLottery.title}\n🔢 *Números:* ${selectedNumbers.join(', ')}\n💰 *Total:* ${CURRENCY_SYMBOL}${purchaseRequest.totalAmount}\n🆔 *ID:* ${purchaseId}`;
+          const waUrl = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
           setLastWhatsAppUrl(waUrl);
-          
-          // Try to open automatically
           window.open(waUrl, '_blank');
       }
-
-      setPurchaseResult({ success: true, message: 'Redirigiendo a WhatsApp...' });
-      
-      // Update local state to reflect sold numbers immediately
-      const updatedLottery = {
-        ...selectedLottery,
-        soldNumbers: [...selectedLottery.soldNumbers, ...selectedNumbers]
-      };
-      setSelectedLottery(updatedLottery);
-      setLotteries(prev => prev.map(l => l.id === updatedLottery.id ? updatedLottery : l));
-      setSelectedNumbers([]);
-      setTimeout(() => setCurrentView(ViewState.CONFIRMATION), 500);
+      setPurchaseResult({ success: true, message: '¡Casi listo! Confirma por WhatsApp.' });
+      loadLotteries();
+      setCurrentView(ViewState.CONFIRMATION);
     } else {
-       setPurchaseResult({ success: false, message: result.error || 'Falló.' });
+       setPurchaseResult({ success: false, message: result.error || 'Error al procesar compra.' });
     }
   };
 
-  // --- VIEWS ---
-
   const renderHome = () => (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
-          Sueña en Grande. <span className="text-blue-600">Gana en Grande.</span>
-        </h1>
-        <p className="mt-5 max-w-xl mx-auto text-xl text-gray-500">
-          La plataforma oficial de lotería PUKATU. Transparente, segura y fácil de usar.
-        </p>
-        {!user && (
-            <div className="mt-6">
-                <button onClick={() => setCurrentView(ViewState.LOGIN)} className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
-                    <Lock className="w-4 h-4 mr-2"/> Acceso Administrativo
-                </button>
+    <div className="animate-fadeIn">
+      {/* Hero Section - TheLotter style */}
+      <div className="relative bg-blue-900 overflow-hidden py-16 sm:py-24">
+        <div className="absolute inset-0 opacity-10">
+           <Globe className="w-full h-full text-white" />
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center">
+            <h1 className="text-4xl font-extrabold text-white sm:text-6xl tracking-tight">
+              La lotería más grande <br/> <span className="text-blue-400">ahora en línea</span>
+            </h1>
+            <p className="mt-6 max-w-2xl mx-auto text-xl text-blue-100">
+              Compra boletos oficiales de forma segura. PUKATU es tu pasaporte a la fortuna.
+            </p>
+            <div className="mt-10 flex flex-wrap justify-center gap-4">
+              <div className="flex items-center gap-2 bg-blue-800/50 px-4 py-2 rounded-full text-blue-200 text-sm border border-blue-700">
+                <ShieldCheck className="w-4 h-4" /> 100% Seguro
+              </div>
+              <div className="flex items-center gap-2 bg-blue-800/50 px-4 py-2 rounded-full text-blue-200 text-sm border border-blue-700">
+                <Zap className="w-4 h-4" /> Resultados al Instante
+              </div>
             </div>
-        )}
+          </div>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 -mt-8">
+        <div className="flex items-center justify-between mb-8">
+           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+             <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+             Sorteos Activos
+           </h2>
+           <button onClick={loadLotteries} className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm font-semibold">
+             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+           </button>
         </div>
-      ) : error ? (
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden border border-red-200">
-            <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-3">
-                <AlertCircle className="w-6 h-6 text-red-600"/>
-                <h3 className="text-lg font-bold text-red-800">
-                    {error === 'CONNECTION_ERROR_CORS' || error === 'ACCESS_DENIED_HTML' 
-                      ? 'Error de Acceso (CORS)' 
-                      : error === 'CONFIGURATION_ERROR_LIBRARY_URL' 
-                        ? 'Error de Configuración: URL de Biblioteca'
-                        : 'Error de Conexión'}
-                </h3>
-            </div>
-            <div className="p-6">
-                
-                {error === 'CONFIGURATION_ERROR_LIBRARY_URL' && (
-                    <div className="bg-orange-50 p-4 rounded-md text-sm text-orange-900 space-y-3 mb-6 border border-orange-100">
-                         <p className="font-bold flex items-center gap-2"><Link2Off className="w-4 h-4 text-orange-600"/> Has proporcionado una URL de Biblioteca</p>
-                         <p>La URL que pegaste contiene <code>/macros/library/</code>. Esta URL es solo para programadores, no sirve para que funcione la App.</p>
-                         <p className="font-semibold mt-2">Cómo obtener la URL Correcta:</p>
-                         <ol className="list-decimal list-inside space-y-2 ml-1">
-                            <li>Ve a tu editor de Google Apps Script.</li>
-                            <li>Clic en <strong>Implementar (Deploy)</strong> &gt; <strong>Gestionar implementaciones</strong>.</li>
-                            <li>Clic en <strong>Editar</strong> (Lápiz).</li>
-                            <li>En <strong>Tipo</strong>, asegúrate de que diga <strong>Aplicación Web</strong>.</li>
-                            <li>Copia la URL que termina en <code>/exec</code>.</li>
-                            <li>Pega esa URL en el archivo <code>constants.ts</code>.</li>
-                        </ol>
-                    </div>
-                )}
 
-                {(error === 'CONNECTION_ERROR_CORS' || error === 'ACCESS_DENIED_HTML') && (
-                    <div className="bg-blue-50 p-4 rounded-md text-sm text-blue-900 space-y-3 mb-6 border border-blue-100">
-                        <p className="font-bold flex items-center gap-2"><HelpCircle className="w-4 h-4 text-blue-600"/> Solución Requerida en Google Apps Script:</p>
-                        <ol className="list-decimal list-inside space-y-2 ml-1">
-                            <li>Ve a tu editor de Google Apps Script.</li>
-                            <li>Clic en <strong>Implementar (Deploy)</strong> → <strong>Gestionar implementaciones</strong>.</li>
-                            <li>Clic en el icono de <strong>Editar</strong> (Lápiz).</li>
-                            <li>En <strong>Versión</strong>, selecciona <strong>"Nueva versión"</strong>.</li>
-                            <li>En <strong>Quién tiene acceso</strong>, selecciona <strong>"Cualquiera" (Anyone)</strong>.</li>
-                            <li>Clic en <strong>Implementar</strong>.</li>
-                        </ol>
-                    </div>
-                )}
-
-                {error !== 'CONFIGURATION_ERROR_LIBRARY_URL' && error !== 'CONNECTION_ERROR_CORS' && error !== 'ACCESS_DENIED_HTML' && (
-                    <p className="text-red-700 font-medium mb-4">{error}</p>
-                )}
-
-                <button onClick={loadLotteries} className="w-full flex justify-center items-center gap-2 bg-blue-600 px-4 py-2 rounded-md shadow-sm text-white font-medium hover:bg-blue-700 transition-colors">
-                    <RefreshCw className="w-4 h-4"/> Reintentar Conexión
-                </button>
-            </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {lotteries.map(lottery => (
-            <LotteryCard key={lottery.id} lottery={lottery} onClick={handleSelectLottery} />
-          ))}
-          {lotteries.length === 0 && (
-             <div className="col-span-full flex flex-col items-center justify-center py-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
-                 <Ticket className="w-12 h-12 text-gray-300 mb-2"/>
-                 <p className="text-lg font-medium">No hay sorteos activos</p>
-                 <p className="text-sm">Vuelve más tarde o accede como Admin para crear uno.</p>
-             </div>
-          )}
-        </div>
-      )}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+             {[1,2,3].map(i => (
+               <div key={i} className="bg-gray-200 animate-pulse h-80 rounded-xl"></div>
+             ))}
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-xl shadow-sm border border-red-100 p-8 text-center max-w-lg mx-auto">
+             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+             <h3 className="text-lg font-bold text-gray-900">Error de Conexión</h3>
+             <p className="text-gray-500 mb-6">{error}</p>
+             <button onClick={loadLotteries} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">
+               Reintentar
+             </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {lotteries.map(lottery => (
+              <LotteryCard key={lottery.id} lottery={lottery} onClick={handleSelectLottery} />
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* SEO Section Inspiration */}
+      <div className="bg-gray-100 py-16 border-t border-gray-200">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">¿Cómo funciona PUKATU?</h3>
+              <p className="text-gray-600 leading-relaxed mb-6">
+                  Desde nuestras oficinas locales compramos en su representación el boleto oficial y le enviamos una confirmación instantánea. 
+                  Comprar boletos en línea es sencillo, seguro y 100% legal bajo las normativas vigentes de Supabase Cloud.
+              </p>
+          </div>
+      </div>
     </div>
   );
 
@@ -264,125 +205,121 @@ Espero confirmación. Gracias.`;
     const totalCost = selectedNumbers.length * selectedLottery.pricePerNumber;
 
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <button 
-          onClick={() => setCurrentView(ViewState.HOME)}
-          className="flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" /> Volver a Loterías
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-slideUp">
+        <button onClick={() => setCurrentView(ViewState.HOME)} className="flex items-center text-blue-600 font-bold mb-6 hover:translate-x-[-4px] transition-transform">
+          <ArrowLeft className="w-5 h-5 mr-2" /> Volver al Inicio
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                   <h2 className="text-2xl font-bold text-gray-900">{selectedLottery.title}</h2>
-                   <p className="text-gray-500">{selectedLottery.description}</p>
-                </div>
-                <div className="text-right">
-                    <p className="text-sm text-gray-400 uppercase tracking-wide">Premio</p>
-                    <p className="text-2xl font-bold text-blue-600">{selectedLottery.prize}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between mb-4 bg-blue-50 p-4 rounded-lg">
-                 <div>
-                    <h3 className="font-semibold text-blue-900">Elige tus Números</h3>
-                    <p className="text-sm text-blue-700">Selecciona los números para añadir a tu boleto.</p>
-                 </div>
-                 <button 
-                   onClick={handleAiPick}
-                   disabled={isAiThinking}
-                   className="flex items-center gap-2 bg-white text-blue-600 px-4 py-2 rounded-md text-sm font-medium border border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
-                 >
-                   {isAiThinking ? <Loader2 className="w-4 h-4 animate-spin"/> : <Wand2 className="w-4 h-4" />}
-                   Pedir a la IA
-                 </button>
-              </div>
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+               <div className="h-64 relative">
+                  <img src={selectedLottery.image} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-8">
+                      <div>
+                          <h2 className="text-3xl font-bold text-white mb-2">{selectedLottery.title}</h2>
+                          <p className="text-blue-200">{selectedLottery.description}</p>
+                      </div>
+                  </div>
+               </div>
+               
+               <div className="p-8">
+                  <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 bg-gray-50 p-6 rounded-xl border border-gray-100">
+                     <div className="text-center sm:text-left">
+                        <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">Premio Mayor</p>
+                        <p className="text-4xl font-extrabold text-blue-600">{selectedLottery.prize}</p>
+                     </div>
+                     <button onClick={handleAiPick} disabled={isAiThinking} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50">
+                        {isAiThinking ? <Loader2 className="w-5 h-5 animate-spin"/> : <Wand2 className="w-5 h-5" />}
+                        Números de la Suerte (IA)
+                     </button>
+                  </div>
 
-              <NumberGrid 
-                totalNumbers={selectedLottery.totalNumbers}
-                soldNumbers={selectedLottery.soldNumbers}
-                selectedNumbers={selectedNumbers}
-                onToggleNumber={handleToggleNumber}
-              />
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-blue-600" />
+                    Selecciona tus números disponibles
+                  </h3>
+                  <NumberGrid 
+                    totalNumbers={selectedLottery.totalNumbers}
+                    soldNumbers={selectedLottery.soldNumbers}
+                    selectedNumbers={selectedNumbers}
+                    onToggleNumber={handleToggleNumber}
+                  />
+               </div>
             </div>
           </div>
 
           <div className="lg:col-span-1">
-             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 sticky top-24">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Tu Boleto</h3>
+             <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 sticky top-24">
+                <h3 className="text-xl font-bold text-gray-900 mb-6 border-b pb-4">Resumen del Pedido</h3>
                 
-                <div className="space-y-4 mb-6">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Números Seleccionados</span>
-                        <span className="font-medium">{selectedNumbers.length}</span>
+                <div className="space-y-6 mb-8">
+                    <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">Números</span>
+                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
+                          {selectedNumbers.length} seleccionado(s)
+                        </span>
                     </div>
                     {selectedNumbers.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-2">
                             {selectedNumbers.map(n => (
-                                <span key={n} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-semibold">
-                                    #{n}
+                                <span key={n} className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-full font-bold shadow-sm">
+                                    {n}
                                 </span>
                             ))}
                         </div>
                     )}
-                    <div className="flex justify-between text-lg font-bold pt-4 border-t">
+                    <div className="flex justify-between text-2xl font-black pt-6 border-t text-gray-900">
                         <span>Total</span>
                         <span>{CURRENCY_SYMBOL}{totalCost}</span>
                     </div>
                 </div>
 
                 <form onSubmit={handlePurchase} className="space-y-4">
-                    <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700">Nombre Completo</label>
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Nombre Completo</label>
                         <input 
                             type="text" 
-                            id="name" 
                             required
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-                            placeholder="Juan Pérez"
+                            className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-blue-500 transition-all"
+                            placeholder="Ej. Juan Pérez"
                             value={userName}
                             onChange={(e) => setUserName(e.target.value)}
-                            disabled={!!user} // Disable editing if logged in
+                            disabled={!!user}
                         />
                     </div>
-                     <div>
-                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Número de Teléfono</label>
-                         <div className="relative">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Teléfono (WhatsApp)</label>
+                        <div className="relative">
                             <input 
                                 type="tel" 
-                                id="phone" 
                                 required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border pl-10"
+                                className="w-full bg-gray-50 border-none rounded-xl p-4 pl-12 focus:ring-2 focus:ring-blue-500 transition-all"
                                 placeholder="04121234567"
                                 value={userPhone}
                                 onChange={(e) => setUserPhone(e.target.value)}
                                 disabled={!!user}
                             />
-                            <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
+                            <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-4" />
                         </div>
                     </div>
 
                     {purchaseResult && !purchaseResult.success && (
-                        <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4" /> {purchaseResult.message}
+                        <div className="p-4 bg-red-50 text-red-700 text-sm rounded-xl flex items-center gap-3 border border-red-100">
+                            <AlertCircle className="w-5 h-5" /> {purchaseResult.message}
                         </div>
                     )}
-
-                    <div className="bg-green-50 p-3 rounded-md text-xs text-green-800 border border-green-200 flex gap-2">
-                         <MessageCircle className="w-4 h-4 flex-shrink-0" />
-                         <p>Al confirmar, se abrirá WhatsApp para enviar tu pedido al organizador.</p>
-                    </div>
 
                     <button 
                         type="submit"
                         disabled={selectedNumbers.length === 0 || purchasing}
-                        className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all ${purchasing || selectedNumbers.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className="w-full bg-green-600 text-white py-4 rounded-xl font-black text-lg shadow-lg shadow-green-200 hover:bg-green-700 hover:-translate-y-1 transition-all active:translate-y-0 disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
                     >
-                        {purchasing ? 'Procesando...' : 'Pedir por WhatsApp'}
+                        {purchasing ? 'PROCESANDO...' : 'PEDIR POR WHATSAPP'}
                     </button>
+                    <p className="text-center text-[10px] text-gray-400 uppercase font-bold tracking-widest mt-4">
+                        Pago 100% Protegido
+                    </p>
                 </form>
              </div>
           </div>
@@ -392,61 +329,41 @@ Espero confirmación. Gracias.`;
   };
 
   const renderConfirmation = () => (
-     <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center border border-gray-100">
-            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-6">
-                <Clock className="h-8 w-8 text-yellow-600" />
+     <div className="min-h-[70vh] flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-md w-full text-center border border-gray-100 animate-scaleIn">
+            <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-8">
+                <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
             
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Solicitud Pendiente!</h2>
+            <h2 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">¡Pedido Realizado!</h2>
             
-            <p className="text-gray-600 mb-6 text-sm">
-                Tus números han sido reservados temporalmente. <br/>
-                <span className="font-semibold text-gray-900">Pasos para validar tu compra:</span>
+            <p className="text-gray-500 mb-8 font-medium">
+                Solo un paso más. Por favor, confirma tu pedido enviando el mensaje pre-cargado al administrador.
             </p>
 
-            <ol className="text-left text-sm text-gray-600 space-y-3 mb-8 bg-gray-50 p-4 rounded-lg">
-                <li className="flex items-start gap-2">
-                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
-                    Envía el mensaje de confirmación por WhatsApp al administrador.
-                </li>
-                 <li className="flex items-start gap-2">
-                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
-                    Realiza el pago según las instrucciones que te den.
-                </li>
-                 <li className="flex items-start gap-2">
-                    <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
-                    El administrador aprobará tu compra y recibirás tu boleto.
-                </li>
-            </ol>
-            
             {lastWhatsAppUrl && (
                 <a 
                     href={lastWhatsAppUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-bold hover:bg-green-700 mb-4 flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-105"
+                    className="w-full bg-green-600 text-white px-6 py-4 rounded-2xl font-black text-lg hover:bg-green-700 mb-4 flex items-center justify-center gap-3 shadow-xl shadow-green-100 transition-all hover:scale-[1.02]"
                 >
-                    <MessageCircle className="w-5 h-5" /> Enviar Comprobante por WhatsApp
+                    <MessageCircle className="w-6 h-6" /> ABRIR WHATSAPP
                 </a>
             )}
 
             <button 
-                onClick={() => {
-                    setPurchaseResult(null);
-                    setLastWhatsAppUrl(null);
-                    setCurrentView(user ? ViewState.DASHBOARD : ViewState.HOME);
-                }}
-                className="w-full bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium hover:bg-gray-50"
+                onClick={() => setCurrentView(ViewState.HOME)}
+                className="w-full text-gray-400 font-bold hover:text-gray-600 py-2 transition-colors"
             >
-                {user ? 'Ir a Mis Compras' : 'Volver al Inicio'}
+                Volver a la tienda
             </button>
         </div>
      </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col selection:bg-blue-100 selection:text-blue-900">
       <Navbar 
         currentView={currentView} 
         setView={setCurrentView} 
@@ -461,22 +378,46 @@ Espero confirmación. Gracias.`;
         {currentView === ViewState.LOGIN && <Login api={api} onLoginSuccess={handleLoginSuccess} />}
         {currentView === ViewState.DASHBOARD && user && <Dashboard user={user} api={api} />}
         {currentView === ViewState.MILLIONAIRE_BAG && (
-             <div className="py-20 text-center">
-                 <h2 className="text-3xl font-bold text-gray-900 mb-4">Bolsa Millonaria</h2>
-                 <p className="text-gray-500 mb-8">Sorteo especial de alto riesgo próximamente.</p>
-                 <button onClick={() => setCurrentView(ViewState.HOME)} className="text-blue-600 hover:underline">Volver</button>
+             <div className="py-24 text-center">
+                 <ShoppingBag className="w-20 h-20 text-yellow-500 mx-auto mb-6 opacity-20" />
+                 <h2 className="text-4xl font-black text-gray-900 mb-4">Bolsa Millonaria</h2>
+                 <p className="text-gray-500 max-w-sm mx-auto mb-10">Muy pronto, el acumulado más grande de PUKATU estará disponible para todos.</p>
+                 <button onClick={() => setCurrentView(ViewState.HOME)} className="bg-gray-900 text-white px-8 py-3 rounded-full font-bold">Volver al Inicio</button>
              </div>
         )}
         {currentView === ViewState.CONFIRMATION && renderConfirmation()}
       </main>
 
-      <footer className="bg-white border-t border-gray-200 mt-auto">
-        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center flex-col sm:flex-row gap-4">
-                <p className="text-gray-400 text-sm">&copy; 2024 PUKATU Sistema de Lotería.</p>
-                <div className="flex space-x-6">
-                    <a href="#" className="text-gray-400 hover:text-gray-500">Términos</a>
-                    <a href="#" className="text-gray-400 hover:text-gray-500">Privacidad</a>
+      <footer className="bg-gray-900 text-white border-t border-gray-800">
+        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 border-b border-gray-800 pb-12 mb-12">
+                <div>
+                   <h4 className="text-xl font-bold mb-4">PUKATU</h4>
+                   <p className="text-gray-400 text-sm">Tu plataforma de confianza para la compra de boletos de lotería oficial. Tecnología de punta para tus sueños de siempre.</p>
+                </div>
+                <div>
+                    <h4 className="font-bold mb-4 uppercase text-xs tracking-widest text-blue-400">Legal</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" className="hover:text-white transition-colors">Términos de Uso</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">Política de Privacidad</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">Reglas del Juego</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-bold mb-4 uppercase text-xs tracking-widest text-blue-400">Soporte</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" className="hover:text-white transition-colors">Preguntas Frecuentes</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">Contacto</a></li>
+                        <li><a href="#" className="hover:text-white transition-colors">WhatsApp Directo</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div className="flex justify-between items-center flex-col sm:flex-row gap-4 opacity-50">
+                <p className="text-xs">&copy; 2024 PUKATU & Supabase. Todos los derechos reservados.</p>
+                <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded bg-gray-800"></div>
+                    <div className="w-8 h-8 rounded bg-gray-800"></div>
+                    <div className="w-8 h-8 rounded bg-gray-800"></div>
                 </div>
             </div>
         </div>

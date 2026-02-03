@@ -34,10 +34,15 @@ export class PukatuAPI {
         role: data.role as Role,
         status: data.status
       };
+      localStorage.setItem('pukatu_user', JSON.stringify(this.user));
     }
   }
 
   getCurrentUser(): User | null {
+    if (!this.user) {
+        const cached = localStorage.getItem('pukatu_user');
+        if (cached) this.user = JSON.parse(cached);
+    }
     return this.user;
   }
 
@@ -47,14 +52,20 @@ export class PukatuAPI {
     localStorage.removeItem('pukatu_user');
   }
 
+  private formatEmail(input: string): string {
+    return input.includes('@') ? input : `${input.toLowerCase().trim()}@pukatu.com`;
+  }
+
   async registerGAS(request: RegisterRequest): Promise<ApiResponse<User>> {
+    const loginEmail = this.formatEmail(request.email);
+    
     const { data: authData, error: authError } = await this.supabase.auth.signUp({
-      email: request.email.includes('@') ? request.email : `${request.email}@pukatu.com`,
+      email: loginEmail,
       password: request.password,
     });
 
     if (authError) return { success: false, error: authError.message };
-    if (!authData.user) return { success: false, error: "Error al crear usuario" };
+    if (!authData.user) return { success: false, error: "Error al crear credenciales" };
 
     const { error: profileError } = await this.supabase
       .from('profiles')
@@ -63,7 +74,7 @@ export class PukatuAPI {
         email: request.email,
         name: request.name,
         role: request.role,
-        status: request.status || 'active'
+        status: 'active'
       });
 
     if (profileError) return { success: false, error: profileError.message };
@@ -73,14 +84,21 @@ export class PukatuAPI {
   }
 
   async loginGAS(email: string, password?: string): Promise<ApiResponse<User>> {
-    const loginEmail = email.includes('@') ? email : `${email}@pukatu.com`;
+    const loginEmail = this.formatEmail(email);
     
     const { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
       email: loginEmail,
       password: password || '',
     });
 
-    if (authError) return { success: false, error: authError.message };
+    if (authError) {
+        // Mejorar mensaje para el usuario
+        const msg = authError.message === 'Invalid login credentials' 
+            ? 'Usuario o contraseña incorrectos. ¿Ya te registraste?' 
+            : authError.message;
+        return { success: false, error: msg };
+    }
+    
     if (!authData.user) return { success: false, error: "Usuario no encontrado" };
 
     await this.fetchAndSetProfile(authData.user.id, email);
@@ -96,8 +114,11 @@ export class PukatuAPI {
 
     if (error) return { success: false, error: error.message };
     
-    // Adaptar nombres de campos de snake_case a camelCase para la app
-    const lotteries: Lottery[] = data.map(item => ({
+    return { success: true, data: this.mapLotteries(data) };
+  }
+
+  private mapLotteries(data: any[]): Lottery[] {
+    return data.map(item => ({
       id: item.id,
       title: item.title,
       description: item.description,
@@ -107,13 +128,11 @@ export class PukatuAPI {
       soldNumbers: item.sold_numbers || [],
       status: item.status,
       drawDate: item.draw_date,
-      image: item.image_url,
+      image: item.image_url || 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?q=80&w=1000&auto=format&fit=crop',
       createdBy: item.created_by,
       contactPhone: item.contact_phone,
       winningNumber: item.winning_number
     }));
-
-    return { success: true, data: lotteries };
   }
 
   async submitPurchase(request: PurchaseRequest): Promise<ApiResponse<{purchaseId: string, contactPhone?: string}>> {
@@ -138,7 +157,6 @@ export class PukatuAPI {
 
     if (error) return { success: false, error: error.message };
 
-    // Actualizar números vendidos en la lotería
     const currentSold = lotteryData?.sold_numbers || [];
     await this.supabase
       .from('lotteries')
@@ -147,37 +165,48 @@ export class PukatuAPI {
 
     return { 
       success: true, 
-      data: { 
-        purchaseId: data.id, 
-        contactPhone: lotteryData?.contact_phone 
-      } 
+      data: { purchaseId: data.id, contactPhone: lotteryData?.contact_phone } 
     };
   }
 
-  async getSystemStats(): Promise<ApiResponse<SystemStats>> {
-    const { count: usersCount } = await this.supabase.from('profiles').select('*', { count: 'exact', head: true });
-    const { count: lotteryCount } = await this.supabase.from('lotteries').select('*', { count: 'exact', head: true });
-    const { data: revenueData } = await this.supabase.from('purchases').select('total_amount').eq('status', 'confirmed');
+  async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
+    const { data, error } = await this.supabase
+      .from('lotteries')
+      .insert({
+        title: lottery.title,
+        description: lottery.description,
+        prize: lottery.prize,
+        total_numbers: lottery.totalNumbers || 100,
+        price_per_number: lottery.pricePerNumber || 10,
+        status: 'active',
+        draw_date: lottery.drawDate || new Date(Date.now() + 86400000).toISOString(),
+        image_url: lottery.image,
+        contact_phone: lottery.contactPhone || '584121234567',
+        created_by: this.user?.id,
+        sold_numbers: []
+      })
+      .select()
+      .single();
 
-    const totalRevenue = revenueData?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data as any };
+  }
 
-    return { 
-      success: true, 
-      data: { 
-        totalUsers: usersCount || 0, 
-        totalAdmins: 0, 
-        totalLotteries: lotteryCount || 0, 
-        activeLotteries: lotteryCount || 0, 
-        totalRevenue, 
-        pendingPayments: 0 
-      } 
-    };
+  async getLotteriesByUser(email: string, role: Role): Promise<ApiResponse<Lottery[]>> {
+    let query = this.supabase.from('lotteries').select('*');
+    if (role !== 'superadmin') {
+        query = query.eq('created_by', this.user?.id);
+    }
+    
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: this.mapLotteries(data) };
   }
 
   async uploadImage(file: File): Promise<string> {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `lottery-covers/${fileName}`;
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const filePath = `covers/${fileName}`;
 
     const { error: uploadError } = await this.supabase.storage
       .from(STORAGE_BUCKET)
@@ -192,58 +221,29 @@ export class PukatuAPI {
     return data.publicUrl;
   }
 
-  async createLottery(lottery: Partial<Lottery>): Promise<ApiResponse<Lottery>> {
-    const { data, error } = await this.supabase
-      .from('lotteries')
-      .insert({
-        title: lottery.title,
-        description: lottery.description,
-        prize: lottery.prize,
-        total_numbers: lottery.totalNumbers,
-        price_per_number: lottery.pricePerNumber,
-        status: 'active',
-        draw_date: lottery.drawDate,
-        image_url: lottery.image,
-        contact_phone: lottery.contactPhone,
-        created_by: this.user?.id
-      })
-      .select()
-      .single();
+  async getSystemStats(): Promise<ApiResponse<SystemStats>> {
+    const { count: uCount } = await this.supabase.from('profiles').select('*', { count: 'exact', head: true });
+    const { count: lCount } = await this.supabase.from('lotteries').select('*', { count: 'exact', head: true });
+    const { data: rev } = await this.supabase.from('purchases').select('total_amount').eq('status', 'confirmed');
+    const { count: pCount } = await this.supabase.from('purchases').select('*', { count: 'exact', head: true }).eq('status', 'pending');
 
-    if (error) return { success: false, error: error.message };
-    return { success: true, data: data as any };
+    return { 
+      success: true, 
+      data: { 
+        totalUsers: uCount || 0, 
+        totalAdmins: 0, 
+        totalLotteries: lCount || 0, 
+        activeLotteries: lCount || 0, 
+        totalRevenue: rev?.reduce((s, p) => s + Number(p.total_amount), 0) || 0, 
+        pendingPayments: pCount || 0 
+      } 
+    };
   }
 
   async getAllUsers(): Promise<ApiResponse<User[]>> {
     const { data, error } = await this.supabase.from('profiles').select('*');
     if (error) return { success: false, error: error.message };
     return { success: true, data: data as any };
-  }
-
-  async getLotteriesByUser(email: string, role: Role): Promise<ApiResponse<Lottery[]>> {
-    let query = this.supabase.from('lotteries').select('*');
-    if (role === 'admin') query = query.eq('created_by', this.user?.id);
-    
-    const { data, error } = await query;
-    if (error) return { success: false, error: error.message };
-    
-    const lotteries: Lottery[] = data.map(item => ({
-      id: item.id,
-      title: item.title,
-      description: item.description,
-      prize: item.prize,
-      totalNumbers: item.total_numbers,
-      pricePerNumber: item.price_per_number,
-      soldNumbers: item.sold_numbers || [],
-      status: item.status,
-      drawDate: item.draw_date,
-      image: item.image_url,
-      createdBy: item.created_by,
-      contactPhone: item.contact_phone,
-      winningNumber: item.winning_number
-    }));
-
-    return { success: true, data: lotteries };
   }
 
   async getPendingPayments(): Promise<ApiResponse<Purchase[]>> {
@@ -254,36 +254,19 @@ export class PukatuAPI {
 
     if (error) return { success: false, error: error.message };
 
-    const purchases: Purchase[] = data.map(p => ({
-      id: p.id,
-      lotteryId: p.lottery_id,
-      buyerName: p.buyer_name,
-      email: p.email,
-      selectedNumbers: p.selected_numbers,
-      totalAmount: p.total_amount,
-      status: p.status,
-      purchaseDate: p.created_at,
-      lotteryTitle: p.lotteries?.title
-    }));
-
-    return { success: true, data: purchases };
-  }
-
-  async confirmPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-    const { error } = await this.supabase
-      .from('purchases')
-      .update({ status: 'confirmed' })
-      .eq('id', purchaseId);
-
-    return { success: !error, error: error?.message };
-  }
-
-  async rejectPayment(purchaseId: string): Promise<ApiResponse<boolean>> {
-    const { error } = await this.supabase
-      .from('purchases')
-      .update({ status: 'rejected' })
-      .eq('id', purchaseId);
-
-    return { success: !error, error: error?.message };
+    return { 
+      success: true, 
+      data: data.map(p => ({
+        id: p.id,
+        lotteryId: p.lottery_id,
+        buyerName: p.buyer_name,
+        email: p.email,
+        selectedNumbers: p.selected_numbers,
+        totalAmount: p.total_amount,
+        status: p.status,
+        purchaseDate: p.created_at,
+        lotteryTitle: p.lotteries?.title
+      }))
+    };
   }
 }
